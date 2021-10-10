@@ -1,0 +1,6 @@
+{
+  "name": "mir-one/mir-front",
+  "description": "mir frontend",
+  "type": "package",
+  "license": "MIT"
+}
