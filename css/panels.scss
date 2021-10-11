@@ -25,6 +25,20 @@
 }
 
 .edit-row-panel {
+  .format-text, .format-comment{
+    padding: 5px;
+    font-size: 12px;
+    margin-top: 5px;
+  }
+  .format-text + .format-comment{
+    margin-top: 0px;
+  }
+  .format-comment{
+    i{
+      padding-right: 5px;
+    }
+  }
+
   .cell-wrapper::not([data-name="data_src"]) {
     input[type=checkbox] {
       margin-top: 0;
@@ -149,6 +163,10 @@
 
   .form-control {
     font-size: 14px !important;
+  }
+
+  label span{
+    font-size: 15px;
   }
 }
 

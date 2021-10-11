@@ -5,6 +5,62 @@
   overflow-x: hidden;
 }
 
+#page-tree {
+  #branch-title, #searchArea, #serverSearch {
+    background-color: #f3f3f3;
+    max-width: 400px;
+    margin-left: 0;
+  }
+ #leftTree{
+   border-radius: 0 !important;
+ }
+}
+
+#searchArea {
+
+  padding-left: 20px;
+  padding-right: 10px;
+  padding-top: 10px;
+
+  input {
+    border-color: transparent;
+    border-radius: 3px;
+    padding: 5px 10px;
+  }
+}
+
+#serverSearch {
+  padding: 20px;
+  border-top: 1px solid lightgray;
+  margin-right: 10px;
+  margin-left: 10px;
+
+  a {
+    width: 210px;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    display: inline-block;
+    white-space: nowrap;
+    color: #000;
+  }
+
+  .icon {
+    font-size: 12px;
+    opacity: 0.3;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    margin-right: 2px;
+    vertical-align: top;
+  }
+
+  &:empty {
+    padding: 0;
+    border-top: 0;
+  }
+}
+
+
 .Tree {
   /* хром, сафари */
   ::-webkit-scrollbar {
@@ -40,9 +96,10 @@
   padding-top: 10px;
   width: 300px;
 
-  .jstree-node.tree-folder{
+  .jstree-node.tree-folder {
     margin-top: 10px;
   }
+
   /* color: #bbb;*/
 
 
@@ -62,7 +119,8 @@
   .jstree-node {
     background: none;
     margin-bottom: 4px;
-    &:first-child{
+
+    &:first-child {
       margin-top: 4px;
     }
   }

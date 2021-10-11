@@ -95,7 +95,9 @@ fieldTypes.listRow = $.extend({}, fieldTypes.default, {
 
         let field = this;
         let div = $('<div>');
-        let dialog = $('<div>').css('min-height', 200);
+        let dialog = $('<div>');
+        let Dialog;
+
         let buttons;
         let element = $('<div class="HTMLEditor">');
 
@@ -114,25 +116,32 @@ fieldTypes.listRow = $.extend({}, fieldTypes.default, {
                         editor.setText(JSON.stringify(json.value));
                     }
                 } catch (e) {
-                    window.top.App.modal('Ошибка формата JSON ');
+                    window.top.App.modal(App.translate('JSON format error'));
                 }
-                element.css('min-height', 200);
 
-                let btn = $('<a href="#" style="padding-top: 5px; display: inline-block; padding-left: 20px;">Вручную</a>').on('click', function () {
+                let btn = $('<a href="#" style="padding-top: 5px; display: inline-block; padding-left: 20px;">' + App.translate('Manually') + '</a>').on('click', function () {
                     let div = $('<div>');
-                    let textarea = $('<textarea class="form-control" style="height: 350px;">').val(JSON.stringify(editor.get(), null, 2)).appendTo(div);
-                    let title = 'Ручное изменение json-поля', buttons = [
+                    let textarea = $('<textarea class="form-control">').val(JSON.stringify(editor.get(), null, 2)).appendTo(div);
+
+                    if (window.top.innerHeight > 460) {
+                        dialog.css('min-height', 200);
+                        element.css('min-height', 200);
+                        textarea.height(350)
+                    }
+
+                    const saveM = function (dialog) {
+                        try {
+                            editor.setText(textarea.val());
+                            dialog.close();
+                        } catch (e) {
+                            window.top.App.modal(App.translate('JSON format error'))
+                        }
+                    };
+                    let title = App.translate('Manually changing the json field'), buttons = [
                         {
-                            'label': "Сохранить",
+                            'label': App.translate('Save')+' Alt+S',
                             cssClass: 'btn-m btn-warning',
-                            action: function (dialog) {
-                                try {
-                                    editor.setText(textarea.val());
-                                    dialog.close();
-                                } catch (e) {
-                                    window.top.App.modal('Ошибка формата JSON')
-                                }
-                            }
+                            action: saveM
                         }, {
                             'label': null,
                             icon: 'fa fa-times',
@@ -148,6 +157,7 @@ fieldTypes.listRow = $.extend({}, fieldTypes.default, {
                             buttons: buttons,
                         })
                     } else {
+                        let eventName = 'ctrlS.Manually';
                         window.top.BootstrapDialog.show({
                             message: div,
                             type: null,
@@ -156,12 +166,15 @@ fieldTypes.listRow = $.extend({}, fieldTypes.default, {
                             cssClass: 'fieldparams-edit-panel',
                             buttons: buttons,
                             onhide: function (event) {
-                                // escClbk(div, event);
+                                $('body').off(eventName);
                             },
                             onshown: function (dialog) {
                                 dialog.$modalContent.position({
                                     of: window.top
                                 });
+                                $('body').on(eventName, () => {
+                                    saveM(dialog)
+                                })
                             },
                             onshow: function (dialog) {
                                 dialog.$modalHeader.css('cursor', 'pointer')
@@ -194,7 +207,7 @@ fieldTypes.listRow = $.extend({}, fieldTypes.default, {
         buttons = [];
 
         let btnsSave = {
-            'label': "Сохранить",
+            'label': App.translate('Save')+' Alt+S',
             cssClass: 'btn-m btn-warning',
             action: save
         }, btnsClose = {
@@ -207,7 +220,7 @@ fieldTypes.listRow = $.extend({}, fieldTypes.default, {
             }
         };
 
-        let title = 'Текст поля <b>' + (this.title) + '</b>';
+        let title = App.translate('Field <b>%s</b> text', this.title) + this.pcTable._getRowTitleByMainField(item, ' (%s)');
         let eventName = 'ctrlS.textedit';
 
         if (editNow) {
@@ -259,7 +272,7 @@ fieldTypes.listRow = $.extend({}, fieldTypes.default, {
                         }
                     })
                 } else {
-                    window.top.BootstrapDialog.show({
+                    Dialog = window.top.BootstrapDialog.show({
                         message: dialog,
                         type: null,
                         title: title,
@@ -294,12 +307,12 @@ fieldTypes.listRow = $.extend({}, fieldTypes.default, {
 
                     });
                 }
-
+                div.data('Dialog', Dialog)
 
             }, 1);
 
 
-            div.text('Редактирование в форме').addClass('edit-in-form');
+            div.text(App.translate('Editing in the form')).addClass('edit-in-form');
         } else {
             div.on('focus click', 'button', function () {
                 let _buttons = buttons.splice();
@@ -350,7 +363,7 @@ fieldTypes.listRow = $.extend({}, fieldTypes.default, {
 
             });
 
-            let btn = $('<button class="btn btn-default btn-sm text-edit-button">').text('Редактировать список/json');
+            let btn = $('<button class="btn btn-default btn-sm text-edit-button">').text(App.translate('Edit list/json'));
             if (tabindex) btn.attr('tabindex', tabindex);
 
             div.append(btn);
@@ -380,10 +393,10 @@ fieldTypes.listRow = $.extend({}, fieldTypes.default, {
         }
         return fieldValue;
     },
-    getHighCelltext(fieldValue, td, item){
+    getHighCelltext(fieldValue, td, item) {
         return this.getCellText(fieldValue);
     },
-    getEditPanelText(fieldValue){
+    getEditPanelText(fieldValue) {
         return this.getCellText(fieldValue.v);
     }
 });

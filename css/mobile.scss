@@ -147,6 +147,10 @@
 
 @media(max-device-width: 1199px) {
 
+  #pk .alert {
+    min-width: 300px;
+    max-width: 90%;
+  }
   #selectPanelBig, #selectPanel {
     .panel-buttons {
       button {
@@ -361,6 +365,7 @@
 
     .pcTable-title {
       font-size: 20px;
+      margin-right: 0px;
     }
 
     .pcTable-rowsTable {

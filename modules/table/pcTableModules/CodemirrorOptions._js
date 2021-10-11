@@ -9,7 +9,7 @@
 
     let MIRjsFuncs = {};
     funcsFromTable.forEach(function (row) {
-        MIRjsFuncs[row.name.toLowerCase()] = [row.t, 0, row.p, row.n, row.m];
+        MIRjsFuncs[row.name.toLowerCase()] = [row.t, 0, row.p, row.n, row.m, row.name];
     });
     let DbFieldParams = ['where', 'order', 'field', 'sfield', 'bfield', 'tfield', 'preview', 'parent', 'section', 'table', 'filter', 'fieldtitle', 'fieldhide'];
 
@@ -31,16 +31,19 @@
 
                     let value = mirror.getValue();
                     let editorMax;
+                    let eventName = 'ctrlS.CodemirrorMax';
+
 
                     window.top.BootstrapDialog.show({
                         message: newCodemirrorDiv,
                         type: null,
-                        title: 'Правка текстового поля',
+                        title: App.translate('Text field editing'),
 
                         cssClass: 'fieldparams-edit-panel',
                         draggable: true,
                         onhide: function (event) {
                             mirror.setValue(editorMax.getValue());
+                            $('body').off(eventName)
                         },
 
                         onshow: function (dialog) {
@@ -50,8 +53,9 @@
                                 minHeight: "90vh"
                             });
                             dialog.$modalHeader.find('button.close').css('font-size', '16px').html('<i class="fa fa-compress"></i>')
-
-
+                            $('body').on(eventName, () => {
+                                dialog.close()
+                            })
                         },
                         onshown: function (dialog) {
                             editorMax = CodeMirror(newCodemirrorDiv.get(0), {
@@ -83,6 +87,71 @@
             }
         } catch (e) {
             mirror.setValue(e.message);
+        }
+    });
+
+    const funcHelp = async function (name, span) {
+        let nameL = name.toLowerCase();
+
+        let div = $('<div style="width:200px" class="function-help">');
+        $('<div class="func-template">').text(name + MIRjsFuncs[nameL][0]).appendTo(div).on('click', () => {
+            return false;
+        });
+        let params = $('<div class="func-params">').appendTo(div).on('click', () => {
+            return false;
+        });
+
+        MIRjsFuncs[nameL][2].forEach((f) => {
+            let s = $('<span>').text(f);
+            if (MIRjsFuncs[nameL][3].indexOf(f) !== -1) {
+                s.addClass('req');
+            }
+            if (MIRjsFuncs[nameL][4].indexOf(f) !== -1) {
+                s.addClass('multi');
+            }
+            if (DbFieldParams.indexOf(f) !== -1) {
+                s.addClass('db');
+            }
+
+            params.append(s)
+            params.append(' ')
+
+        })
+
+        let btn = $('<a>').attr('href', 'https://docs.mir.one/functions#fn-' + MIRjsFuncs[nameL][5])
+            .attr('target', '_blank')
+            .html('<button class="btn btn-default btn-sm">' + App.translate('Documentaion') + '</button>');
+
+        div.append(btn.wrap('<div class="button">').parent())
+
+        App.popNotify({
+            isParams: true,
+            $text: div,
+            element: span,
+            trigger: 'manual',
+
+            container: $("body")
+        });
+        setTimeout(() => {
+            $('#table').data('pctable').closeCallbacks.push(function () {
+                if (span && span.length) span.popover('destroy');
+            })
+        }, 200);
+        $('body').click();
+    }
+
+
+    CodeMirror.defineInitHook(function (mirror) {
+        try {
+            $(mirror.display.wrapper).on('contextmenu', '.cm-function', function () {
+                let func = $(this).text();
+                func = func.substring(0, func.length - 1)
+                funcHelp(func, $(this));
+
+                return false;
+            })
+        } catch (e) {
+            console.log(e.message)
         }
     });
 
@@ -154,7 +223,7 @@
     CodeMirror.defineMode("mir", function () {
         return {
             startState: function () {
-                return {inString: false, isStart: true, inFunction: false, lineName: ''};
+                return {inString: false, isStart: true, inFunction: false, lineName: '', inMirBlock: false};
             },
             token: function (stream, state) {
 
@@ -202,14 +271,96 @@
                 }
 
                 state.lineNames = [];
-                try {
-                    stream.lineOracle.doc.cm.getValue().split("\n").forEach(function (line) {
-                        if (line.trim().length === 0 || line.indexOf('//') === 0) return '';
-                        if (!line.match(/\s*[a-zA-Z_0-9=]+\s*:/)) return '';
-                        return state.lineNames.push(line.replace(/^\s*~?\s*([a-zA-Z_0-9=]+)\s*:.*/, '$1'));
-                    });
-                } catch (e) {
+                let codeBlocks = [];
 
+                if (stream.lineStart === 0 && stream.start === 0) {
+                    try {
+                        stream.lineOracle.doc.cm.lineNames = [];
+                        let inCodeBlockNamed = null;
+                        let inCodeBlockType = null;
+                        let inCodeBlockStart = null;
+                        let codeBlockNames = [];
+                        let codeLines = [];
+                        stream.lineOracle.doc.cm.codeBlocks = codeBlocks;
+
+                        stream.lineOracle.doc.cm.getValue().split("\n").forEach(function (line, i) {
+                            let matches;
+                            if (inCodeBlockNamed) {
+                                if (line.trim() === '```') {
+                                    stream.lineOracle.doc.cm.lineNames.push(inCodeBlockNamed);
+                                    codeBlocks.push([inCodeBlockStart, i, inCodeBlockType, inCodeBlockNamed, codeBlockNames]);
+                                    inCodeBlockNamed = null;
+                                    inCodeBlockType = null;
+                                    inCodeBlockStart = null;
+                                    codeBlockNames = [];
+                                } else {
+                                    if (matches = line.match(/^\s*~?\s*([a-zA-Z_0-9]+)\s*(=\s*[a-zA-Z0-9_]*)?:/)) {
+                                        codeBlockNames.push(matches[1]);
+                                    }
+                                }
+                                codeLines.push(i);
+                                return;
+                            }
+                            if (matches = line.match(/^\s*```~?([a-zA-Z_0-9]+):([a-z]+)/)) {
+                                inCodeBlockNamed = matches[1];
+                                inCodeBlockType = matches[2];
+                                inCodeBlockStart = i;
+                                codeLines.push(i);
+                                return;
+                            }
+                            if (line.trim().length === 0 || line.indexOf('//') === 0) return '';
+                            if (!(matches = line.match(/^\s*~?\s*([a-zA-Z_0-9]+)\s*(=\s*[a-zA-Z0-9_]*)?:/))) return '';
+                            return stream.lineOracle.doc.cm.lineNames.push(matches[1]);
+                        });
+
+                        if (codeBlocks.length) {
+                            if (stream.lineOracle.doc.cm.lineColorizeTimer) {
+                                clearTimeout(stream.lineOracle.doc.cm.lineColorizeTimer);
+                            }
+                            stream.lineOracle.doc.cm.lineColorizeTimer = setTimeout(() => {
+
+                                stream.lineOracle.doc.eachLine((line) => {
+                                    let i = stream.lineOracle.doc.getLineNumber(line);
+                                    if (line.bgClass !== 'code-block') {
+                                        if (codeLines.indexOf(i) !== -1) {
+                                            stream.lineOracle.doc.cm.addLineClass(line, 'background', 'code-block')
+                                            stream.lineOracle.doc.cm.addLineClass(line, 'text', 'code-block-text')
+                                        }
+                                    } else {
+                                        if (codeLines.indexOf(i) === -1) {
+                                            stream.lineOracle.doc.cm.removeLineClass(line, 'background', 'code-block')
+                                            stream.lineOracle.doc.cm.removeLineClass(line, 'text', 'code-block-text')
+                                        }
+                                    }
+                                })
+                            }, 10);
+                        }
+
+
+                    } catch (e) {
+                        console.log(e);
+                    }
+                } else {
+                    codeBlocks = stream.lineOracle.doc.cm.codeBlocks;
+                    state.lineNames = stream.lineOracle.doc.cm.lineNames;
+                }
+
+                state.inMirBlock = false;
+
+                for (var i = 0; i < codeBlocks.length; i++) {
+                    let block = codeBlocks[i];
+                    if (block[0] === stream.lineOracle.line && stream.start === 0) {
+                        stream.skipTo(':');
+                        state.lineName = block[3];
+                        return 'start spec-code';
+                    } else if (block[0] <= stream.lineOracle.line && stream.lineOracle.line <= block[1]) {
+                        if ((block[0] == stream.lineOracle.line || stream.lineOracle.line == block[1] || block[2] !== 'mir')) {
+                            stream.skipToEnd();
+                            return 'spec-code';
+                        }
+                        state.inMirBlock = true;
+                        state.codeBlock = block;
+                    }
                 }
 
 
@@ -234,7 +385,9 @@
                             classes += " fixed";
                             state.lineName = state.lineName.substring(1);
                         }
-                        if (/^=|[a-z]{1,2}\d+=$/i.test(state.lineName)) {
+                        state.lineName = state.lineName.replace(/=\s*[a-z0-9_]*\s*$/, '=');
+
+                        if (/^\s*=\s*$|^\s*[a-z]{1,2}\d+=$/i.test(state.lineName)) {
                             classes += ' exec'
                         } else if (!/^[a-z0-9_]+$/i.test(state.lineName)) {
                             return error();
@@ -256,7 +409,13 @@
                     if (matchesCount > 1) {
                         classes += " dubbled";
                     }
+                    if (state.inMirBlock) {
+                        classes += ' mir-block';
+                    }
+
+
                     state.isStart = false;
+
                     return classes;
                 }
                 state.isStart = false;
@@ -317,21 +476,38 @@
                             break;
                         case '@':
                             stream.next();
-                            let nS;
-                            while (/[a-z0-9_.]/.test(nS = stream.peek()) && stream.next()) {
+                            if (stream.peek() === '$') {
+                                stream.next();
+                                while (/[a-zA-Z0-9_]/.test(stream.peek()) && stream.next()) {
+                                }
+                                if (!subFunc()) return error();
+                                return 'global-var'
+
+                            } else {
+                                let nS;
+                                while (/[a-z0-9_.]/.test(nS = stream.peek()) && stream.next()) {
+                                }
+                                if (!subFunc()) return error();
+
+                                let string = stream.string.substring(stream.start + 1, stream.pos)
+
+                                if (/^[a-z0-9_]{3,}\.[a-z0-9_]{2,}(\[\[?([a-zA-Z0-9_\$\#]+|"[^"]+"|'[^']+')\]?\])*$/i.test(string)) {
+                                    return "db_name";
+                                }
                             }
-                            if (!subFunc()) return error();
-
-                            let string = stream.string.substring(stream.start + 1, stream.pos)
-
-                            if (/^[a-z0-9_]{3,}\.[a-z0-9_]{2,}(\[\[?([a-zA-Z0-9_\$\#]+|"[^"]+"|'[^']+')\]?\])*$/i.test(string)) {
-                                return "db_name";
-                            }
-
                             return error();
+
                             break;
                         case '$':
                             stream.next();
+                            if (stream.peek() === '@') {
+                                stream.next();
+                                while (/[a-zA-Z0-9_]/.test(stream.peek()) && stream.next()) {
+                                }
+                                if (!subFunc()) return error();
+                                return 'process-var'
+
+                            }
                             if (stream.peek() === '$') {
                                 stream.next();
                             }
@@ -357,7 +533,7 @@
                                     varName = varName.substring(1);
                                 }
 
-                                if (state.lineNames.indexOf(varName) === -1) {
+                                if (!state.inMirBlock && state.lineNames.indexOf(varName) === -1) {
                                     classes += " var-not-in";
                                 }
                                 return classes;
@@ -418,6 +594,7 @@
                         stream.next();
                         state.inFunction = false;
                         state.functionParam = '';
+                        delete state.func;
                         return 'function';
                     }
 
@@ -538,13 +715,11 @@
                     func = lower.substring(0, lower.indexOf('/'));
                     params = lower.substring(lower.indexOf('/'));
                     delimiter = '/';
-                }
-                else if (lower.indexOf(';') !== -1) {
+                } else if (lower.indexOf(';') !== -1) {
                     func = lower.substring(0, lower.indexOf(';'));
                     params = lower.substring(lower.indexOf(';'));
                     delimiter = ';';
-                }
-                else func = lower.trimRight();
+                } else func = lower.trimRight();
 
 
                 if (func = MIRjsFuncs[func]) {
@@ -554,7 +729,7 @@
                         replaceText = '(';
                         let firstParamCh = 1;
                         let isFirst = true;
-                        params.split(delimiter).forEach(function (str) {
+                        params.split(/[\/;]/).forEach(function (str) {
                             if (str.length === 0) ;
                             else {
                                 if (!isFirst) {
@@ -711,7 +886,7 @@
             , title: '',
             render: renderHint, type: '', curPos: token.start + 5, hint: hintFunc,
             tab: true
-        },$cond = {
+        }, $cond = {
             text: 'cond``',
             textVis: 'cond``'
             , title: '',
@@ -727,25 +902,26 @@
 
         keywords = keywords.slice();
         if (token.state.isStart || cur.ch === 0) {
-            keywords = [];
-            token.string = token.string.replace(/^[\t]+/, '');
-            let tilda = '';
-            if (/^~/.test(token.string)) {
-                token.string.replace(/^~/, '');
-                tilda = '~';
+            if (!token.state.inMirBlock) {
+                keywords = [];
+                token.string = token.string.replace(/^[\t]+/, '');
+                let tilda = '';
+                if (/^~/.test(token.string)) {
+                    token.string.replace(/^~/, '');
+                    tilda = '~';
+                }
+                $(editor.getWrapperElement()).find('.cm-var-not-in:not(.cm-mir-block)').each(function () {
+                    let text = $(this).text().replace(/^(\#|\$)?\$/, '').replace(/\[.*/, '');
+
+                    keywords.push({text: tilda + text + ': ', displayText: text});
+                });
             }
-            $(editor.getWrapperElement()).find('.cm-var-not-in').each(function () {
-                let text = $(this).text().replace(/^(\#|\$)?\$/, '').replace(/\[.*/, '');
-
-                keywords.push({text: tilda + text + ': ', displayText: text});
-            });
-
 
         } else if (token.type === 'error' && token.state.func && token.state.func[2].length && [";", "/"].indexOf(line[token.start]) !== -1) {
             keywords = [];
 
-            start = token.string.substr(0, cur.ch-token.start).replace(/^[;\/]+([a-z_]*).*/, '$1')
-            let end = token.string.substr(cur.ch-token.start ).replace(/^[;\/]+[a-z_]*(.*)/, '$1')
+            start = token.string.substr(0, cur.ch - token.start).replace(/^[;\/]+([a-z_]*).*/, '$1')
+            let end = token.string.substr(cur.ch - token.start).replace(/^[;\/]+[a-z_]*(.*)/, '$1')
 
             token.state.func[2].forEach(function (fName) {
 
@@ -907,40 +1083,81 @@
             } else if (token.string.slice(0, 2) === '$#') {
 
                 keywords = [
-                    {text: "$#lc", title: 'Пустой лист', render: renderHint, type: 'item-code-var'},
-                    {text: "$#nd", title: 'дата - Y-m-d', render: renderHint, type: 'item-code-var'}, //, hint: function (cm, data, completion) {}
-                    {text: "$#ndt", title: 'дата-время - Y-m-d H:i', render: renderHint, type: 'item-code-var'},
+                    {text: "$#lc", title: App.translate('empty list'), render: renderHint, type: 'item-code-var'},
                     {
-                        text: "$#ndts",
-                        title: 'дата-время с секундами - Y-m-d H:i:s',
+                        text: "$#nd",
+                        title: App.translate('date') + ' - Y-m-d',
+                        render: renderHint,
+                        type: 'item-code-var'
+                    }, //, hint: function (cm, data, completion) {}
+                    {
+                        text: "$#ndt",
+                        title: App.translate('date-time') + ' - Y-m-d H:i',
                         render: renderHint,
                         type: 'item-code-var'
                     },
-                    {text: "$#nu", title: 'id пользователя', render: renderHint, type: 'item-code-var'},
-                    {text: "$#nr", title: 'ids ролей пользователя', render: renderHint, type: 'item-code-var'},
-                    {text: "$#nti", title: 'id таблицы', render: renderHint, type: 'item-code-var'},
-                    {text: "$#ntn", title: 'NAME таблицы', render: renderHint, type: 'item-code-var'},
-                    {text: "$#nth", title: 'HASH врем. таблицы', render: renderHint, type: 'item-code-var'},
-                    {text: "$#nci", title: 'Cycle расчетной таблицы', render: renderHint, type: 'item-code-var'},
-                    {text: "$#nf", title: 'NAME поля', render: renderHint, type: 'item-code-var'},
-                    {text: "$#nl", title: 'Новая строка', render: renderHint, type: 'item-code-var'},
-                    {text: "$#tb", title: 'Табуляция', render: renderHint, type: 'item-code-var'},
-                    {text: "$#tpa", title: 'Тип экшена код действия', render: renderHint, type: 'item-code-var'},
-                    {text: "$#ids", title: 'id отмеченных галочками полей', render: renderHint, type: 'item-code-var'},
+                    {
+                        text: "$#ndts",
+                        title: App.translate('date-time with secongs') + ' - Y-m-d H:i:s',
+                        render: renderHint,
+                        type: 'item-code-var'
+                    },
+                    {text: "$#nu", title: App.translate('user id'), render: renderHint, type: 'item-code-var'},
+                    {text: "$#nr", title: App.translate('user roles ids'), render: renderHint, type: 'item-code-var'},
+                    {text: "$#nti", title: App.translate('table id'), render: renderHint, type: 'item-code-var'},
+                    {text: "$#ntn", title: App.translate('table NAME'), render: renderHint, type: 'item-code-var'},
+                    {
+                        text: "$#nth",
+                        title: App.translate('temporary table HASH'),
+                        render: renderHint,
+                        type: 'item-code-var'
+                    },
+                    {text: "$#ih", title: App.translate('adding row HASH'), render: renderHint, type: 'item-code-var'},
+                    {
+                        text: "$#nci",
+                        title: App.translate('calcuated table cycle id'),
+                        render: renderHint,
+                        type: 'item-code-var'
+                    },
+                    {text: "$#nf", title: App.translate('field NAME'), render: renderHint, type: 'item-code-var'},
+                    {text: "$#nl", title: App.translate('new line'), render: renderHint, type: 'item-code-var'},
+                    {text: "$#tb", title: App.translate('tab'), render: renderHint, type: 'item-code-var'},
+                    {
+                        text: "$#tpa",
+                        title: App.translate('action code action type'),
+                        render: renderHint,
+                        type: 'item-code-var'
+                    },
+                    {
+                        text: "$#ids",
+                        title: App.translate('the ids of the checked fields'),
+                        render: renderHint,
+                        type: 'item-code-var'
+                    },
                     {
                         text: "$#nfv",
-                        title: 'Значение текущего поля (для селектов/действий/форматов)',
+                        title: App.translate('current field value (for selections/actions/formats)'),
                         render: renderHint,
                         type: 'item-code-var'
                     },
                     {
                         text: "$#onfv",
-                        title: 'Прошлое значение текущего поля',
+                        title: App.translate('past value of the current field'),
                         render: renderHint,
                         type: 'item-code-var'
                     },
-                    {text: "$#nh", title: 'Текущий хост-name', render: renderHint, type: 'item-code-var'},
-                    {text: "$#duplicatedId", title: 'Ид дублированной строки', render: renderHint, type: 'item-code-var'},
+                    {
+                        text: "$#nh",
+                        title: App.translate('current host-name'),
+                        render: renderHint,
+                        type: 'item-code-var'
+                    },
+                    {
+                        text: "$#duplicatedId",
+                        title: App.translate('duplicated row id'),
+                        render: renderHint,
+                        type: 'item-code-var'
+                    },
                 ];
 
                 const funcSort = function (firsts) {
@@ -973,14 +1190,21 @@
                 token.start = token.start + match[1].length;
                 token.end = cur.ch;
 
-                token.state.lineNames.forEach(function (name) {
-                    if (name.indexOf('=') === -1) {
-                        keywords.push(name);
-                    }
-                });
+                if (token.state.inMirBlock) {
+                    token.state.codeBlock[4].forEach(function (name) {
+                        if (name.indexOf('=') === -1) {
+                            keywords.push(name);
+                        }
+                    });
+                } else {
+                    token.state.lineNames.forEach(function (name) {
+                        if (name.indexOf('=') === -1) {
+                            keywords.push(name);
+                        }
+                    });
+                }
 
-            } else if (match = token.string.match(/^\#/)) {
-
+            } else if (match = token.string.match(/^\#/) && !token.state.inMirBlock) {
                 keywords = [];
                 token.string = token.string.slice(1, cur.ch - token.start);
                 token.start = token.start + 1;
@@ -1016,8 +1240,9 @@
 
                         if (func = MIRjsFuncs[match[1].toLowerCase()]) {
                             let oldStart = token.start;
-                            token.start = token.start + token.string.lastIndexOf(match[2]) + 1;
-                            token.string = token.string.slice(token.string.lastIndexOf(match[2]) + 1, cur.ch - oldStart);
+                            let lastIndexOf = token.string.lastIndexOf(";") > token.string.lastIndexOf("/") ? token.string.lastIndexOf(";") : token.string.lastIndexOf("/")
+                            token.start = token.start + lastIndexOf + 1;
+                            token.string = token.string.slice(lastIndexOf + 1, cur.ch - oldStart);
                             token.end = cur.ch;
                             keywords = [];
                             func[2].forEach(function (fName) {
@@ -1074,8 +1299,7 @@
 
                 keywords = [
                     'true',
-                    'false'
-
+                    'false', $math, $json, $cond, $str
                 ];
                 if (token.state.functionParam === 'order') {
                     keywords = keywords.concat(['asc', 'desc'])
@@ -1133,18 +1357,18 @@
             };
 
             //ctrl-s
-            let isBigOneSave = cm.options.bigOneDialog && event.ctrlKey && (event.keyCode || event.which).toString() === '83';
+            let isBigOneSave = cm.options.bigOneDialog && window.top.wasCtrl(event) && (event.keyCode || event.which).toString() === '83';
 
 
             if (isBigOneSave) {
                 event.stopPropagation();
-                if(typeof cm.options.bigOneDialog=== 'function'){
+                if (typeof cm.options.bigOneDialog === 'function') {
                     cm.options.bigOneDialog();
-                }else {
+                } else {
                     cm.options.bigOneDialog.close()
                 }
 
-            } else if (event.ctrlKey && (event.keyCode || event.which).toString() === '191') {
+            } else if (window.top.wasCtrl(event) && (event.keyCode || event.which).toString() === '191') {
                 CodeMirror.commentMe(cm);
             }
 
@@ -1165,8 +1389,9 @@
             let wrapper = $(cm.getWrapperElement());
             let line = cm.getLine(cur.line);
             let startVal = line.substring(0, cur.ch);
+            if (token.inMirBlock) return false;
 
-            if (/^\s*~?\s*?[a-zA-Z0-9_]+$/.test(startVal)) {
+            if (/^\s*~?(```)?\s*?[a-zA-Z0-9_]+$/.test(startVal)) {
                 name = token.lineName;
             } else {
                 let pos = cur.ch - 1;
@@ -1183,7 +1408,7 @@
             }
 
             if (name) {
-                let regTest = new RegExp('^\s*~?\s*' + name + '\s*:');
+                let regTest = new RegExp('^\s*~?(```)?\s*' + name + '\s*:');
 
                 if (regTest.test(wrapper.find('.cm-start.light').text())) {
                     wrapper.find('.light').removeClass('light');
@@ -1192,15 +1417,15 @@
                     let reg = new RegExp("\\$" + name + '\\b');
 
 
-                    wrapper.find('.cm-variable,.cm-inVars,.cm-spec,.cm-db_name').each(function () {
+                    wrapper.find('.cm-variable,.cm-inVars,.cm-spec,.cm-db_name').filter(':not(.cm-mir-block)').each(function () {
                         let cmVar = $(this);
                         if (cmVar.text().match(reg)) {
                             cmVar.addClass('light');
                         }
                     });
-                    wrapper.find('.cm-start').each(function () {
+                    wrapper.find('.cm-start:not(.cm-mir-block)').each(function () {
                         let cmVar = $(this);
-                        if (cmVar.text().trim().replace('~', '').replace(':', '') === name) {
+                        if (cmVar.text().trim().replace('~', '').replace(':', '').replace('```', '') === name) {
                             cmVar.addClass('light');
                         }
                     })
@@ -1444,7 +1669,7 @@
                 }
                 hints.style.top = (top = pos.bottom - overlapY) + "px";
             }
-            
+
             (options.container || window.top.document.body).appendChild(hints);
 
             cm.addKeyMap(this.keyMap = buildKeyMap(options, {
