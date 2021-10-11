@@ -66,23 +66,71 @@ App.pcTableMain.prototype.__applyFilters = function (forse = false) {
 
 
     let old = [];
-    if (this.isTreeView) {
-        this.dataSortedVisible.forEach((v) => {
-            if (typeof v != 'object') {
-                old.push(v)
-            }
-        })
-    } else {
+    if (!this.isTreeView) {
         old = this.dataSortedVisible.slice();
     }
     let new_ = [];
     let new_check = [];
 
-    for (let i = 0; i < this.dataSorted.length; i++) {
-        let element = this.dataSorted[i];
-        if (typeof element === 'object') {
-            new_.push(element);
+    if (this.isTreeView) {
+        if (this.filters && Object.keys(this.filters).length) {
+
+            let expands = [];
+            this.dataSorted.forEach((v) => {
+                if (typeof v === 'object' && !v.opened) {
+                    expands.push(v)
+                }
+            })
+            expands.forEach((v) => {
+                this._expandTreeFolderRow(v, true)
+            })
+            for (let i = 0; i < this.dataSorted.length; i++) {
+                let element = this.dataSorted[i];
+                let row = element.row;
+                if (typeof element !== 'object') {
+                    row = this.data[element];
+                }
+                if (row && this.__applyFiltersToItem(row)) {
+                    let parents = [];
+
+
+                    let ip = i - 1;
+                    while (typeof this.dataSorted[ip] !== 'object') {
+                        ip--;
+                    }
+                    let p;
+                    if (typeof element === 'object') {
+                        p = element.p
+                    } else {
+                        parents.push(this.dataSorted[ip]);
+                        p = this.dataSorted[ip].p;
+                    }
+
+                    while (p && ip) {
+                        while (typeof this.dataSorted[ip] !== 'object') {
+                            ip--;
+                        }
+                        if (this.dataSorted[ip] === this.getElementInTree(p)) {
+                            parents.push(this.dataSorted[ip])
+                            p = this.dataSorted[ip].p;
+                        }
+                        ip--;
+                    }
+                    while (parents.length) {
+                        new_.push(parents.pop());
+                    }
+                    new_.push(element);
+                }
+            }
+
         } else {
+            this.dataSorted.forEach((v) => {
+                new_.push(v);
+            })
+        }
+    } else {
+        for (let i = 0; i < this.dataSorted.length; i++) {
+            let element = this.dataSorted[i];
             let item = this.data[element];
             this.__applyFiltersToItem(item);
             if (item.$visible) {
@@ -93,7 +141,7 @@ App.pcTableMain.prototype.__applyFilters = function (forse = false) {
     }
 
 
-    if (forse || JSON.stringify(old) !== JSON.stringify(new_check)) {
+    if (this.isTreeView || forse || JSON.stringify(old) !== JSON.stringify(new_check)) {
         this.dataSortedVisible = new_;
         this._refreshContentTable(false, true);
         this._headCellIdButtonsState();
@@ -101,7 +149,7 @@ App.pcTableMain.prototype.__applyFilters = function (forse = false) {
     this.selectedCells && this.selectedCells.summarizer.check();
     App.fullScreenProcesses.hide();
 };
-App.pcTableMain.prototype.__applyFiltersToItem = function (item, notAttachIt) {
+App.pcTableMain.prototype.__applyFiltersToItem = function (item) {
     let pcTable = this;
     let visible = true;
 
@@ -125,7 +173,7 @@ App.pcTableMain.prototype.__applyFiltersToItem = function (item, notAttachIt) {
                     let field = pcTable._getFieldbyName(fieldName);
                     if (!field.checkIsFiltered(item[fieldName], filterVals)) {
                         visible = false;
-                    }else{
+                    } else {
                         field.checkIsFiltered(item[fieldName], filterVals)
                     }
                     break;
@@ -163,6 +211,7 @@ App.pcTableMain.prototype.__applyFiltersToItem = function (item, notAttachIt) {
     if (!(item.$visible = visible)) {
         this.row_actions_uncheck(item);
     }
+    return item.$visible;
 };
 App.pcTableMain.prototype.addValueToFilters = function (fieldName, valObj) {
     const pcTable = this;
@@ -207,7 +256,7 @@ App.pcTableMain.prototype.removeValueFromFilters = function (fieldName, valObj) 
     }
 
 
-    if(field.$th){
+    if (field.$th) {
         field.$th.find('.btn-filter').parent().replaceWith(pcTable.__getFilterButton.call(pcTable, fieldName));
     }
     pcTable.__applyFilters.call(pcTable);
@@ -226,6 +275,7 @@ App.pcTableMain.prototype.__addFilterable = function () {
 
     this.loadFilters();
 
+    /*!panelView*/
     if (!this.viewType) {
         this._header.on('click', '.pcTable-filters > span button.btn-filter:not(#checkS)', function (event) {
 
@@ -236,7 +286,7 @@ App.pcTableMain.prototype.__addFilterable = function () {
             let fieldName = th.is('.id') ? 'id' : th.data('field');
 
             let selectDiv = $('<div class="filter-div-button">');
-            let select = $('<select class="selectpicker" data-size="6" multiple title="Выберите значения" data-style="btn-sm btn-default" data-width="css-width" data-live-search="true" data-selected-text-format="count">').appendTo(selectDiv);
+            let select = $('<select class="selectpicker" data-size="6" multiple title="'+App.translate("Select values")+'" data-style="btn-sm btn-default" data-width="css-width" data-live-search="true" data-selected-text-format="count">').appendTo(selectDiv);
 
             const popoverDestroy = function () {
                 try {
@@ -308,15 +358,24 @@ App.pcTableMain.prototype.__addFilterable = function () {
             select.data('container', selectDiv);
 
             var vals = {};
-            Object.values(pcTable.dataSorted).forEach(function (_id) {
-                if (typeof _id !== 'object') {
+
+            if(pcTable.isTreeView){
+                Object.values(pcTable.data).forEach(function (row) {
+                    if (fieldName === 'id') {
+                        vals[row.id.toString()] = row.id.toString();
+                    } else {
+                        pcTable.fields[fieldName].addDataToFilter(vals, row[fieldName]);
+                    }
+                });
+            }else{
+                Object.values(pcTable.dataSorted).forEach(function (_id) {
                     if (fieldName === 'id') {
                         vals[_id.toString()] = _id.toString();
                     } else {
                         pcTable.fields[fieldName].addDataToFilter(vals, pcTable.data[_id][fieldName]);
                     }
-                }
-            });
+                });
+            }
 
 
             var filterOptions = {};
@@ -335,15 +394,27 @@ App.pcTableMain.prototype.__addFilterable = function () {
             let chousenVisible = 0;
 
             const randOptions = function (q) {
-                optgroups = {'Выбранное': $('<optgroup label="Выбранное">'), '': $('<optgroup label="">')};
+                optgroups = {[App.translate('Selected')]: $('<optgroup label="'+App.translate('Selected')+'">'), '': $('<optgroup label="">')};
 
                 let isLikedFunc = function () {
                     return true;
                 };
                 if (q && q !== '') {
-                    let qs = q.toLowerCase().replace('ё', 'е').split(" ");
+                    let qs = q;
+
+                    [qs] = App.lang.search_prepare_function(qs);
+
+                    qs=qs.split(" ");
                     isLikedFunc = function (v) {
-                        let text = v !== null ? v.toString().toLowerCase().replace('ё', 'е') : "";
+                        let text;
+                        if(v === null){
+                            text="";
+                        }else{
+                            text = v.toString();
+                            [text] = App.lang.search_prepare_function(text);
+                        }
+
+
                         return !qs.some(function (q) {
                             return text.indexOf(q) === -1
                         })
@@ -357,7 +428,7 @@ App.pcTableMain.prototype.__addFilterable = function () {
 
                     if (filterVal.indexOf(v.toString()) !== -1) {
                         let isVisible = isLikedFunc(k);
-                        optgroups['Выбранное'].append('<option data-content="' + k + '" ' + (isVisible ? '' : 'style="display: none"') + '>' + v + '</option>');
+                        optgroups[App.translate('Selected')].append('<option data-content="' + k + '" ' + (isVisible ? '' : 'style="display: none"') + '>' + v + '</option>');
                         chousenVisible += isVisible ? 1 : 0;
                     } else {
                         if (!isLikedFunc(k)) return true;
@@ -372,12 +443,12 @@ App.pcTableMain.prototype.__addFilterable = function () {
                 });
                 select.empty();
                 if (!chousenVisible) {
-                    optgroups['Выбранное'].attr('label', '');
+                    optgroups[App.translate('Selected')].attr('label', '');
                 }
-                select.append(optgroups['Выбранное']);
+                select.append(optgroups[App.translate('Selected')]);
                 select.append(optgroups['']);
                 if (isCutted) {
-                    select.append('<option data-content="Данные не полны. Пользуйтесь поиском" disabled = disabled style="text-align: center; cursor: pointer">0</option>');
+                    select.append('<option data-content="'+App.translate('The data is incomplete. Use the search!')+'" disabled = disabled style="text-align: center; cursor: pointer">0</option>');
                 }
                 select.data('options', filterOptions);
                 select.selectpicker('val', filterVal);
@@ -412,25 +483,25 @@ App.pcTableMain.prototype.__addFilterable = function () {
 
             let $buttons = $('<div class="buttons" style="position: absolute; bottom: -10px; width: 100%; text-align: center">');
 
-            $('<span class="btn btn-default btn-xxs button-ok" style="margin-right: 4px; margin-top: 3px;">Прим.</span></span>').appendTo($buttons).on('click', function () {
+            $('<span class="btn btn-default btn-xxs button-ok" style="margin-right: 4px; margin-top: 3px;">'+App.translate('ApplyShort')+'</span></span>').appendTo($buttons).on('click', function () {
                 actionIt('setSelectedFilters');
             });
-            $('<span class="btn btn-default btn-xxs button-ok" style="margin-right: 4px; margin-top: 3px;">Инверт.</span></span>').appendTo($buttons).on('click', function () {
+            $('<span class="btn btn-default btn-xxs button-ok" style="margin-right: 4px; margin-top: 3px;">'+App.translate('InvertShort')+'</span></span>').appendTo($buttons).on('click', function () {
                 actionIt('setInvertFilters');
             });
-            $('<span class="btn btn-default btn-xxs button-ok" style="margin-right: 4px; margin-top: 3px">Отмен.</span>').appendTo($buttons).on('click', function () {
+            $('<span class="btn btn-default btn-xxs button-ok" style="margin-right: 4px; margin-top: 3px">'+App.translate('CancelShort')+'</span>').appendTo($buttons).on('click', function () {
                 actionIt('filterRemove');
             });
 
 
             if (pcTable.fields[fieldName] && pcTable.fields[fieldName].code && !pcTable.fields[fieldName].codeOnlyInAdd) {
-                let h_select = $('<select data-title="Все" data-dropup-auto="false" class="dropup" data-container=".popover" data-style="btn btn-xxs filter-by-hand '
+                let h_select = $('<select data-title="'+App.translate('All')+'" data-dropup-auto="false" class="dropup" data-container=".popover" data-style="btn btn-xxs filter-by-hand '
                     + (pcTable.filters[fieldName + "/h"] ? 'btn-warning' : 'btn-default') + ' ">' +
-                    '<option value="">Все</option>' +
-                    '<option value="n">Без руки</option>' +
-                    '<option value="h">С рукой все</option>' +
-                    '<option value="hf">С рукой как в расчете</option>' + //<i class="fa fa-hand-rock-o pull-right"></i>
-                    '<option value="hc">С рукой отличающиеся</option>' + //<i class="fa fa-hand-paper-o pull-right"></i>
+                    '<option value="">'+App.translate('All')+'</option>' +
+                    '<option value="n">'+App.translate('Without hand')+'</option>' +
+                    '<option value="h">'+App.translate('With hand all')+'</option>' +
+                    '<option value="hf">'+App.translate('With hand equals calc')+'</option>' + //<i class="fa fa-hand-rock-o pull-right"></i>
+                    '<option value="hc">'+App.translate('With hand different')+'</option>' + //<i class="fa fa-hand-paper-o pull-right"></i>
                     '</select>')
                     .appendTo($buttons)
                     .on('change', function () {
@@ -463,7 +534,7 @@ App.pcTableMain.prototype.__addFilterable = function () {
                     selectDiv.height(260)
                 else
                     selectDiv.height(220)
-                $buttons.append('<div class="text-center ttm-paging-danges">Фильтрация по текущей странице</div>');
+                $buttons.append('<div class="text-center ttm-paging-danges">'+App.translate('Filtering by current page')+'</div>');
             } else {
                 if (chousenVisible)
                     selectDiv.height(220)
@@ -500,7 +571,7 @@ App.pcTableMain.prototype.__addFilterable = function () {
                         return 'multiincludes';
                     };
 
-                    select.data('selectpicker').$searchbox.focus();
+
 
                     let searchTimeout;
 
@@ -540,6 +611,8 @@ App.pcTableMain.prototype.__addFilterable = function () {
                             actionIt('setSelectedFilters');
                         }
                     });
+
+                    select.data('selectpicker').$searchbox.focus();
                 }
             }, 50);
             pcTable._container.trigger('filterPressed');
