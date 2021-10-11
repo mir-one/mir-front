@@ -17,7 +17,7 @@ fieldTypes.text = {
     getValue: function (value, item, isModulPanel) {
         "use strict";
 
-        if (isModulPanel || (typeof value === 'string' && value.length < this.viewTextMaxLength)) {
+        if (isModulPanel || (typeof value === 'string' && value.length < this.viewTextMaxLength && !this.notLoaded)) {
             let def = $.Deferred();
             setTimeout(function () {
 
@@ -78,7 +78,7 @@ fieldTypes.text = {
         fieldValue = fieldValue.toString();
         let field = this;
 
-        if (fieldValue.length <= this.viewTextMaxLength) return field.getPanelTextWithLinks(fieldValue, false).data('text', fieldValue);
+        if (fieldValue.length <= this.viewTextMaxLength && !this.notLoaded) return field.getPanelTextWithLinks(fieldValue, false).data('text', fieldValue);
 
         let def = $.Deferred();
 
@@ -118,7 +118,7 @@ fieldTypes.text = {
 
         let field = this;
         let div = $('<div>');
-        let dialog = $('<div>').css('min-height', 200);
+        let dialog = $('<div>');
         let buttons;
         let element = $('<div class="HTMLEditor">');
 
@@ -139,23 +139,28 @@ fieldTypes.text = {
                             editor.setText(json.value);
                         }
                     } catch (e) {
-                        window.top.App.modal('Ошибка формата JSON ')
+                        window.top.App.modal(App.translate('JSON format error'))
                     }
-                    element.css('min-height', 200);
 
-                    let btn = $('<a href="#" style="padding-top: 5px; display: inline-block; padding-left: 20px;">Вручную</a>').on('click', function () {
+
+                    let btn = $('<a href="#" style="padding-top: 5px; display: inline-block; padding-left: 20px;">' + App.translate('Manually') + '</a>').on('click', function () {
                         let div = $('<div>');
-                        let textarea = $('<textarea class="form-control" style="height: 350px;">').val(JSON.stringify(editor.get(), null, 2)).appendTo(div);
+                        let textarea = $('<textarea class="form-control">').val(JSON.stringify(editor.get(), null, 2)).appendTo(div);
+                        if (window.innerHeight > 460) {
+                            textarea.css('height', 350)
+                            element.css('min-height', 200);
+                        }
+
                         let buttons = [
                             {
-                                'label': "Сохранить",
+                                'label': App.translate('Save') + ' Alt+S',
                                 cssClass: 'btn-m btn-warning',
                                 action: function (dialog) {
                                     try {
                                         editor.setText(textarea.val());
                                         dialog.close();
                                     } catch (e) {
-                                        window.top.App.modal('Ошибка формата JSON')
+                                        window.top.App.modal(App.translate('JSON format error'))
                                     }
                                 }
                             }, {
@@ -169,12 +174,12 @@ fieldTypes.text = {
                         ];
 
                         if (field.pcTable.isMobile) {
-                            App.mobilePanel('Ручное изменение json-поля', div, {buttons: buttons})
+                            App.mobilePanel(App.translate('Manually changing the json field'), div, {buttons: buttons})
                         } else {
                             BootstrapDialog.show({
                                 message: div,
                                 type: null,
-                                title: 'Ручное изменение json-поля',
+                                title: App.translate('Manually changing the json field'),
                                 buttons: buttons,
                                 cssClass: 'fieldparams-edit-panel',
                                 draggable: true,
@@ -201,7 +206,7 @@ fieldTypes.text = {
 
                     let el = $('<div>').appendTo(element);
                     let options = {
-                        value: json.value.toString(),
+                        value: (json.value || '').toString(),
                         mode: mode,
                         minHeight: '150px',
                         readOnly: false,
@@ -225,10 +230,16 @@ fieldTypes.text = {
                     if (field.pcTable && field.pcTable.tableRow.name === 'tables') {
                         editor.table = item.name.v || item.name;
                     }
-                    editor.getScrollerElement().style.minHeight = '350px';
+
+                    if (window.innerHeight > 585) {
+                        editor.getScrollerElement().style.minHeight = '350px';
+                        dialog.css('min-height', 200)
+                    }
+
                     editor.focus();
 
                 }
+
 
                 element.data('editor', editor);
                 div.data('editor', editor);
@@ -253,7 +264,7 @@ fieldTypes.text = {
         buttons = [];
 
         let btnsSave = {
-            'label': "Сохранить",
+            'label': App.translate('Save') + ' Alt+S',
             cssClass: 'btn-m btn-warning',
             action: save
         }, btnsClose = {
@@ -268,7 +279,7 @@ fieldTypes.text = {
 
         if (['xml', 'html'].indexOf(field.textType) !== -1) {
             buttons.unshift({
-                label: 'Форматировать',
+                label: App.translate('Format'),
                 action: function () {
                     let editor = element.data('editor');
                     let totalLines = editor.lineCount();
@@ -278,7 +289,7 @@ fieldTypes.text = {
             });
         }
 
-        let title = 'Текст поля <b>' + (this.title) + ', ' + field.textType + '</b>';
+        let title = App.translate('Field <b>%s</b> text', this.title) + ', <b>' + field.textType + '</b>' + this.pcTable._getRowTitleByMainField(item, ' (%s)');
         let eventName = 'ctrlS.textedit';
 
         if (editNow) {
@@ -332,7 +343,7 @@ fieldTypes.text = {
                     })
 
                 } else {
-                    BootstrapDialog.show({
+                    let Dialog = window.top.BootstrapDialog.show({
                         message: dialog,
                         type: null,
                         title: title,
@@ -340,14 +351,14 @@ fieldTypes.text = {
                         draggable: true,
                         buttons: buttons,
                         onhide: function (dialog) {
-                            $('body').off(eventName);
+                            $(window.top.document).find('body').off(eventName);
                             if (!btnClicked) {
                                 escClbk(div, {});
                             }
                         },
                         onshown: function (dialog) {
                             dialog.$modalContent.position({
-                                of: $('body'),
+                                of: $(window.top.document).find('body'),
                                 my: 'top+50px',
                                 at: 'top'
                             });
@@ -359,22 +370,28 @@ fieldTypes.text = {
                                 width: '100%'
                             });
 
-                            $('body').on(eventName, function (event) {
+                            $(window.top.document).find('body').on(eventName, function (event) {
                                 save(dialog, event);
                                 return false;
                             });
                         }
 
                     });
+                    div.data('Dialog', Dialog)
                 }
 
 
             }, 1);
 
 
-            div.text('Редактирование в форме').addClass('edit-in-form');
+            div.text(App.translate('Editing in the form')).addClass('edit-in-form');
         } else {
-            div.on('focus click', 'button', function () {
+            div.on('keydown click', function (event) {
+                if (event.key === 'Tab') {
+                    blurClbk(dialog, event, null, true);
+                    return
+                }
+
                 let _buttons = buttons.splice();
                 _buttons.push(btnsSave);
                 _buttons.push(btnsClose);
@@ -398,7 +415,7 @@ fieldTypes.text = {
                     })
 
                 } else {
-                    BootstrapDialog.show({
+                    window.top.BootstrapDialog.show({
                         message: dialog,
                         type: null,
                         cssClass: 'fieldparams-edit-panel',
@@ -406,7 +423,7 @@ fieldTypes.text = {
                         buttons: _buttons,
                         draggable: true,
                         onhide: function (event) {
-                            $('body').off(eventName);
+                            $(window.top.document).find('body').off(eventName);
                             escClbk(div, event);
                         },
                         onshown: function (dialog) {
@@ -416,7 +433,7 @@ fieldTypes.text = {
                             dialog.$modalContent.css({
                                 width: 900
                             });
-                            $('body').on(eventName, function (event) {
+                            $(window.top.document).find('body').on(eventName, function (event) {
                                 save(dialog, event);
                                 return false;
                             });
@@ -425,7 +442,7 @@ fieldTypes.text = {
                 }
             });
 
-            let btn = $('<button class="btn btn-default btn-sm text-edit-button">').text('Редактировать текст');
+            let btn = $('<button class="btn btn-default btn-sm text-edit-button">').text(App.translate('Edit text'));
             if (tabindex) btn.attr('tabindex', tabindex);
 
             div.append(btn);
@@ -439,8 +456,8 @@ fieldTypes.text = {
     getCellTextInPanel: function (fieldValue, td, item) {
         return this.getPanelTextWithLinks(fieldValue);
     },
-    addPlaceholder(input, placeholder){
-        setTimeout(function (){
+    addPlaceholder(input, placeholder) {
+        setTimeout(function () {
             input.data('editor').setOption('placeholder', placeholder);
             input.data('editor').refresh();
         }, 100)
