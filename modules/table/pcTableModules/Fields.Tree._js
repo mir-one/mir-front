@@ -12,6 +12,7 @@
             let dialog = div.data('dialog') || $('<div>').css('min-height', 200);
             div.data('dialog', dialog);
             let buttons, btn;
+            let Dialog;
 
             oldValueParam = oldValueParam.v || '';
 
@@ -40,7 +41,7 @@
             buttons = [];
 
             let btnsSave = {
-                'label': "Сохранить",
+                'label': App.translate('Save')+' Alt+S',
                 cssClass: 'btn-m btn-warning',
                 action: save
             }, btnsClose = {
@@ -53,7 +54,7 @@
                 }
             };
 
-            let title = '<b>' + (this.title) + '</b>';
+            let title = '<b>' + (this.title) + '</b>' + this.pcTable._getRowTitleByMainField(item, ' (%s)');
             let eventName = 'ctrlS.commentdialog';
             const onshown = function (dialog) {
                 if (!field.pcTable.isMobile) {
@@ -66,7 +67,7 @@
                 if (dialog.$modalBody.find('textarea').length === 0) {
                     formFill(dialog);
                 }
-                $('body').on(eventName, function (event) {
+                dialog.$modalContent.closest('body').on(eventName, function (event) {
                     save(dialog, event, false);
                 });
 
@@ -114,7 +115,7 @@
                             onshow: onshown
                         })
                     } else {
-                        BootstrapDialog.show({
+                        Dialog = window.top.BootstrapDialog.show({
                             message: dialog,
                             type: null,
                             title: title,
@@ -122,14 +123,14 @@
                             draggable: true,
                             buttons: buttons,
                             onhide: function (dialog) {
-                                $('body').off(eventName);
+                                $(window.top.document).find('body').off(eventName);
                                 if (!btnClicked) {
                                     blurClbk(div, {});
                                 }
                             },
                             onshown: function (dialog) {
                                 dialog.$modalContent.position({
-                                    of: $('body'),
+                                    of: $(window.top.document).find('body'),
                                     my: 'top+50px',
                                     at: 'top'
                                 });
@@ -137,15 +138,21 @@
                             onshow: onshown
 
                         });
+                        div.data('Dialog', Dialog)
                     }
                 }, 1);
 
 
-                div.text('Редактирование в форме').addClass('edit-in-form');
+                div.text(App.translate('Editing in the form')).addClass('edit-in-form');
             } else {
                 let showned = false;
-                div.off().on('focus click', 'button', function () {
+                div.off().on('click keydown', function (ev) {
                     if (showned) return false;
+                    if (ev.key === 'Tab') {
+                        blurClbk(dialog, ev, null, true);
+                        return
+                    }
+
                     showned = true;
                     let buttonsClick = buttons.slice(0);
                     buttonsClick.push(btnsSave);
@@ -164,7 +171,7 @@
                             onshow: onshown
                         })
                     } else {
-                        BootstrapDialog.show({
+                        window.top.BootstrapDialog.show({
                             message: dialog,
                             type: null,
                             cssClass: 'fieldparams-edit-panel',
@@ -174,7 +181,7 @@
                             buttons: buttonsClick,
                             onhide: function (event) {
                                 showned = false;
-                                $('body').off(eventName);
+                                $(window.top.document).find('body').off(eventName);
                                 escClbk(div, event);
                             },
                             onshow: onshown
@@ -184,7 +191,7 @@
                 });
 
                 if (div.find('button').length === 0) {
-                    btn = $('<button class="btn btn-default btn-sm text-edit-button">').text('Редактирование в форме');
+                    btn = $('<button class="btn btn-default btn-sm text-edit-button">').text(App.translate('Editing in the form'));
                     if (tabindex) btn.attr('tabindex', tabindex);
 
                     div.append(btn);
@@ -204,6 +211,7 @@
             let plugins = ["themes", 'json_data', 'search'];//, 'massload'
             if (field.multiple) {
                 plugins.push('checkbox');
+
             }
             let $search = $('<div class="tree-search"><input class="form-control" type="text"></div>');
             let $searchInput = $search.find('input');
@@ -251,13 +259,49 @@
             $mes.on("init.jstree", function (e, data) {
                 data.instance.settings.checkbox.cascade = '';
 
-                let c = $.jstree.core.prototype.redraw_node
 
-                if (field.changeSelectTable) {
+                if (field.changeSelectTable || field.multiple) {
+
+                    let c = $mes.jstree(true).redraw_node;
+                    let _jsTree = $mes.jstree(true);
+                    const select_node = (id, type) => {
+                        let data = _jsTree.get_node(id);
+                        if (type > 0) {
+                            _jsTree.select_node(data);
+                            if (type === 2) {
+                                if (data.state.loaded === false) {
+                                    _jsTree.load_node(data, (data) => {
+                                        data.children.forEach((id) => {
+                                            select_node(id, type);
+                                        })
+                                    })
+                                } else {
+                                    data.children.forEach((id) => {
+                                        select_node(id, type);
+                                    })
+                                }
+                            }
+                        } else {
+                            _jsTree.deselect_node(data);
+                            if (data.state.loaded === false) {
+                                _jsTree.load_node(data, (data) => {
+                                    data.children.forEach((id) => {
+                                        select_node(id, type);
+                                    })
+                                })
+                            } else {
+                                data.children.forEach((id) => {
+                                    select_node(id, type);
+                                })
+                            }
+                        }
+                    }
+
                     $mes.jstree(true).redraw_node = function (node, deep, is_callback, force_render) {
-                        let _node = c.bind(this)(node, deep, is_callback, force_render);
-                        let data = $mes.jstree(true).get_node(node);
-                        let canEdit = true;
+                        let $icon1;
+                        let _node = c.apply(this, arguments);
+                        let data = this.get_node(node);
+                        let canEdit = field.changeSelectTable;
                         let canAdd = field.changeSelectTable === 2 && field.parentName;
                         if (!field.treeAutoTree) {
                             if (!data.original.id.toString().match(/^\d+$/)) {
@@ -270,6 +314,26 @@
                             $mes.jstree(true).refresh(false, true);
                         }
                         let $icon = $(_node).find('>a i:first');
+
+                        if (field.multiple && (data.state.loaded === false || !(!data.children || !data.children.length))) {
+                            $icon1 = $('<i class="fa fa-hand-lizard-o jstree-children-manage-lizard"></i>');
+                            $icon.after($icon1);
+                            $icon = $icon1.on('click', () => {
+                                data.state.cascadeStep = (data.state.cascadeStep > 1 ? 0 : (data.state.cascadeStep || 0) + 1);
+                                if (data.state.loaded === false) {
+                                    this.load_node(data, (data) => {
+                                        data.children.forEach((id) => {
+                                            select_node(id, data.state.cascadeStep)
+                                        })
+                                    })
+                                } else {
+                                    data.children.forEach((id) => {
+                                        select_node(id, data.state.cascadeStep)
+                                    })
+                                }
+                                return false;
+                            });
+                        }
                         if (canEdit) {
                             $icon1 = $('<i class="fa fa-edit edit-tree-icon"></i>');
                             $icon.after($icon1);
@@ -310,6 +374,8 @@
                                 return false
                             })
                         }
+
+
                         return _node;
                     };
                 }
@@ -321,8 +387,11 @@
                     search_callback: function (q, title) {
                         if (!title) return false;
 
-                        let qs = q.toLowerCase().replace('ё', 'е').split(" ");
-                        let text = title.text.toLowerCase().replace('ё', 'е');
+                        let qs = q.toLowerCase();
+                        let text = title.text.toLowerCase();
+
+                        [text, qs] = App.lang.search_prepare_function(text, qs);
+                        qs = qs.split(" ");
 
                         return !qs.some(function (q) {
                             return text.indexOf(q) === -1
@@ -377,9 +446,6 @@
                         "icons": false,
                         'name': 'default'
                     }
-                }
-                , checkbox: {
-                    //  three_state: false,
                 },
                 "plugins": plugins
             });
@@ -456,8 +522,9 @@
                 let span = $('<span class="tree-view">').css('padding-left', row.level * 22).append(folder);
                 if (format.expand !== false) {
                     folder.addClass('treeRow');
-                    span.append($('<button class="btn btn-default btn-xxs treeRow dbl"><i class="fa fa-arrows-v"></i></button>').data('treeRow', row.v));
-                }else{
+                    field.pcTable._treeFolderRowAddDropdown(span, item.__tree)
+                    //span.append($('<button class="btn btn-default btn-xxs treeRow dbl"><i class="fa fa-arrows-v"></i></button>').data('treeRow', row.v));
+                } else {
                     folder.css('margin-right', 8)
                 }
 
@@ -476,7 +543,7 @@
                             else if (fieldValue.length === 1) return field.getElementSpan(fieldValue[0], arrayVals[0]);
                             else {
                                 if (field.multySelectView === "0" && !field.FullView) {
-                                    return $('<span class="select-item">' + fieldValue.length + ' эл.<span>')
+                                    return $('<span class="select-item">' + App.translate('%s el.', fieldValue.length) + '<span>')
                                 } else {
                                     let span = $('<span class="select-item">');
                                     fieldValue.forEach((fVal, i) => span.append(field.getElementSpan(fVal, arrayVals[i])));
