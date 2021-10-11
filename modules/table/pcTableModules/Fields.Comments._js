@@ -32,11 +32,9 @@ fieldTypes.comments = {
             if (!value) value = [];
             def.resolve({'value': [value.c]});
 
-        }
-        else if (value.n> 1 && !value.notViewed && value.all) {
+        } else if (value.n > 1 && !value.notViewed && value.all) {
             def.resolve({'value': value.c});
-        }
-        else {
+        } else {
             let data = {'fieldName': this.name};
             if (item.id) {
                 data['rowId'] = item.id;
@@ -81,7 +79,7 @@ fieldTypes.comments = {
         let def = $.Deferred();
         let fieldValue = _ || item[field.name];
 
-        const getDiv=function (arr) {
+        const getDiv = function (arr) {
             let div = $('<div class="comments">');
             $.each(arr, function (i, com) {
                 div.append(field.getCommentLine(com));
@@ -91,8 +89,8 @@ fieldTypes.comments = {
             }, 100);
             return div;
         };
-        if (fieldValue.all){
-            return  getDiv(fieldValue.c);
+        if (fieldValue.all) {
+            return getDiv(fieldValue.c);
         }
         this.getValue(fieldValue, item, false).then(function (json) {
             def.resolve(getDiv(json.value));
@@ -129,9 +127,16 @@ fieldTypes.comments = {
         let formFill = function (dlg) {
             field.getValue.call(field, oldValueParam, item, !editNow).then(function (json) {
                 let $input = $('<textarea type="text" style="height:90px;resize: vertical" class="form-control"/>');
-                $.each(json.value, function (i, com) {
-                    dialog.append(field.getCommentLine(com));
-                });
+
+                if (typeof json.value === 'object') {
+                    $.each(json.value, function (i, com) {
+                        dialog.append(field.getCommentLine(com));
+                    });
+                } else if (json.value) {
+                    $input.val(json.value)
+                } else if (div.data('val')) {
+                    $input.val(div.data('val'))
+                }
                 dialog.append($('<div class="comments-input">').append($input));
                 dialog.data('input', $input);
                 $input.focus();
@@ -162,7 +167,7 @@ fieldTypes.comments = {
         buttons = [];
 
         let btnsSave = {
-            'label': "Сохранить",
+            'label': App.translate('Save')+' Alt+S',
             cssClass: 'btn-m btn-warning',
             action: save
         }, btnsClose = {
@@ -175,7 +180,7 @@ fieldTypes.comments = {
             }
         };
 
-        let title = 'Комментарии поля <b>' + (this.title) + '</b>';
+        let title = App.translate('Comments of field')+' <b>' + (this.title) + '</b>' + this.pcTable._getRowTitleByMainField(item, ' (%s)');
         let eventName = 'ctrlS.commentdialog';
         let btnClicked = false;
 
@@ -230,7 +235,7 @@ fieldTypes.comments = {
                         }
                     })
                 } else {
-                    BootstrapDialog.show({
+                   let Dialog = window.top.BootstrapDialog.show({
                         message: dialog,
                         type: null,
                         title: title,
@@ -238,14 +243,14 @@ fieldTypes.comments = {
                         draggable: true,
                         buttons: buttons,
                         onhide: function (dialog) {
-                            $('body').off(eventName);
+                            $(window.top.document).find('body').off(eventName);
                             if (!btnClicked) {
                                 blurClbk(div, {});
                             }
                         },
                         onshown: function (dialog) {
                             dialog.$modalContent.position({
-                                of: $('body'),
+                                of: $(window.top.document).find('body'),
                                 my: 'top+50px',
                                 at: 'top'
                             });
@@ -257,24 +262,29 @@ fieldTypes.comments = {
                                 width: 900
                             });
 
-                            $('body').on(eventName, function (event) {
+                            $(window.top.document).find('body').on(eventName, function (event) {
                                 save(dialog, event, false);
                             });
                         }
 
                     });
                 }
-
+                div.data('Dialog', Dialog)
 
             }, 1);
 
 
-            div.text('Редактирование в форме').addClass('edit-in-form');
+            div.text(App.translate('Editing in the form')).addClass('edit-in-form');
         } else {
             let showned = false;
-            div.off().on('focus click', 'button', function () {
+            div.off().on('click keydown', function (event) {
                 if (showned) return false;
+                if(event.key ==='Tab' ){
+                    blurClbk(dialog, event, null, true);
+                    return
+                }
                 showned = true;
+
                 let buttonsClick = buttons.slice(0);
                 buttonsClick.push(btnsSave);
                 buttonsClick.push(btnsClose);
@@ -299,7 +309,7 @@ fieldTypes.comments = {
                         }
                     })
                 } else {
-                    BootstrapDialog.show({
+                    window.top.BootstrapDialog.show({
                         message: dialog,
                         type: null,
                         cssClass: 'fieldparams-edit-panel',
@@ -309,7 +319,7 @@ fieldTypes.comments = {
                         buttons: buttonsClick,
                         onhide: function (event) {
                             showned = false;
-                            $('body').off(eventName);
+                            $(window.top.document).find('body').off(eventName);
                             escClbk(div, event);
                         },
                         onshown: function (dialog) {
@@ -322,7 +332,7 @@ fieldTypes.comments = {
                                 width: 900
                             });
 
-                            $('body').on(eventName, function (event) {
+                            $(window.top.document).find('body').on(eventName, function (event) {
                                 save(dialog, event, false);
                             });
 
@@ -333,7 +343,7 @@ fieldTypes.comments = {
             });
 
             if (div.find('button').length === 0) {
-                let btn = $('<button class="btn btn-default btn-sm text-edit-button">').text('Добавить комментарий');
+                let btn = $('<button class="btn btn-default btn-sm text-edit-button">').text(App.translate('Add comment'));
                 if (tabindex) btn.attr('tabindex', tabindex);
                 div.append(btn);
             }
@@ -342,8 +352,8 @@ fieldTypes.comments = {
         return div.data('val', null);//.attr('data-category', category).attr('data-category', category);
 
     },
-    getCellTextInPanel: function(fieldValue, td, item, oldItem){
-        return this.getEditPanelText({v:fieldValue}, item, oldItem)
+    getCellTextInPanel: function (fieldValue, td, item, oldItem) {
+        return this.getEditPanelText({v: fieldValue}, item, oldItem)
     },
     getEditPanelText: function (val, item, oldItem) {
         if (!val) return;
@@ -360,15 +370,15 @@ fieldTypes.comments = {
             return f.children();
         } else {
             let f = $('<div>');
-            if(oldItem[this.name] && oldItem[this.name].v && oldItem[this.name].v.forEach){
-            oldItem[this.name].v.forEach(function (row) {
-                f.append(
-                    $('<div>')
-                        .append($('<span class="date">').text(row[0]))
-                        .append($('<span class="user">').text(row[1]))
-                        .append($('<span class="text">').text(row[2]))
-                )
-            });
+            if (oldItem[this.name] && oldItem[this.name].v && oldItem[this.name].v.forEach) {
+                oldItem[this.name].v.forEach(function (row) {
+                    f.append(
+                        $('<div>')
+                            .append($('<span class="date">').text(row[0]))
+                            .append($('<span class="user">').text(row[1]))
+                            .append($('<span class="text">').text(row[2]))
+                    )
+                });
             }
 
             f.append($('<div class="new-comment">').text(val.v));

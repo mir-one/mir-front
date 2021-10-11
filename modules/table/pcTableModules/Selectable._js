@@ -31,25 +31,7 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
 
         let rowName = '';
         if (field.category === 'column') {
-            rowName = '<span class="id-val">[' + item.id + ']</span>';
-            if (pcTable.tableRow.main_field) {
-                let mainField = pcTable.mainFieldName;
-                if (item[mainField].v_ !== undefined) {
-                    if (typeof item[mainField].v_ === 'array') {
-                        item[mainField].v_.forEach(function (v_, i) {
-                            let d = $('<span>').text(pcTable.fields[mainField].getElementString((item[mainField].v ? item[mainField].v[i] : null), v_));
-                            if (v_[1]) {
-                                d.addClass('deleted_value')
-                            }
-                            rowName += ' ' + d.html();
-                        })
-                    } else {
-                        rowName += ' ' + $('<div>').text(pcTable.fields[mainField].getElementString(item[mainField].v, item[mainField].v_)).html();
-                    }
-                } else {
-                    rowName += ' ' + $('<div>').text(item[mainField].v).html();
-                }
-            }
+            rowName = '<span class="id-val">[' + item.id + ']</span>' + pcTable._getRowTitleByMainField(item, ' %s');
             let columnName = $('<div class="row-name"></div>').html(rowName);
 
             $panel.append(columnName);
@@ -91,9 +73,9 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
                         c = $('<span class="deleted_value">').text(c);
                     }
                 }
-                textDiv.append($('<div><i class="fa fa-hand-paper-o"></i> Расчетное значение: </div>').append(c));
+                textDiv.append($('<div><i class="fa fa-hand-paper-o"></i> ' + App.translate('Calculated value') + ': </div>').append(c));
             } else
-                textDiv.append('<div><i class="fa fa-hand-grab-o pull-left"></i> Cовпадает с расчетным</div>');
+                textDiv.append('<div><i class="fa fa-hand-grab-o pull-left"></i> ' + App.translate('Same as calculated') + '</div>');
         }
 
         let divForPannelFormats = $('<div><div class="center"><i class="fa fa-spinner fa-spin"></i></div></div>');
@@ -102,77 +84,44 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
             textDiv.append(divForPannelFormats);
             divForPannelFormats.data('loadFormats', function () {
                 field.pcTable.model.getPanelFormats(field.name, item.id).then((json) => {
-                    divForPannelFormats.empty();
-                    if (json.panelFormats) {
-                        let interv;
-                        json.panelFormats.rows.forEach((frow) => {
-                            switch (frow.type) {
-                                case 'text':
-                                    divForPannelFormats.append($('<div class="panel-text">').text(frow.value));
-                                    break;
-                                case 'html':
-                                    divForPannelFormats.append($('<div class="panel-html">').html(frow.value));
-                                    break;
-                                case 'img':
-                                    divForPannelFormats.append($('<div class="panel-img">').append($('<img>').attr('src', '/fls/' + frow.value + "_thumb.jpg?rand=" + Math.random())));
-                                    break;
-                                case 'buttons':
-                                    if (frow.value && frow.value.forEach) {
-                                        let $buttons = [];
-                                        frow.value.forEach((b) => {
-                                            let btn = $('<button class="btn btn-default btn-xxs">').text(b.text);
-                                            $buttons.push(btn)
-                                            if (b.color) {
-                                                btn.css('color', b.color)
-                                            }
-                                            if (b.background) {
-                                                btn.css('background-color', b.background)
-                                            }
-                                            btn.on('click', function () {
-                                                field.pcTable.selectedCells.empty();
-                                                field.pcTable.selectedCells.selectPanelDestroy();
-
-                                                field.pcTable.model.panelButtonsClick(json.panelFormats.hash, b.ind).then(function (json) {
-                                                    if (b.refresh) {
-                                                        field.pcTable.model.refresh(null, b.refresh)
-                                                    }
-                                                });
-                                            })
-                                        })
-                                        divForPannelFormats.append($('<div class="panel-buttons">').append($buttons));
-                                    }
-                                    break;
-                            }
-
-                        })
-                        if (json.panelFormats.hash) {
-                            interv = setInterval(() => {
-                                if (!$panel.closest('body').length) {
-                                    clearInterval(interv);
-                                    field.pcTable.model.panelButtonsClear(json.panelFormats.hash);
-                                }
-
-                            }, 1000)
-                        }
-                    }
+                    field.getPanelFormats(divForPannelFormats, json.panelFormats)
                 })
             })
         }
 
         if (field.selectTable) {
-
             if (field.changeSelectTable) {
                 let divForPanneSelect = $('<div><div class="center"></div></div>');
 
                 if (field.multi) {
                     if (val.v && val.v.length) {
-                        let btn = $('<button class="btn btn-default btn-xxs"></button>').text("Редактировать").on('click', () => {
+                        let btn = $('<button class="btn btn-default btn-xxs"></button>').text(App.translate('Edit')).on('click', () => {
                             field.sourceButtonClick(item);
                         });
                         divForPanneSelect.append($('<div class="panel-buttons">').append(btn)).appendTo(textDiv);
                     }
-                } else if (val.v) {
-                    let btn = $('<button class="btn btn-default btn-xxs"></button>').text("Редактировать").on('click', () => {
+                } else if (val.v && !val.v_[1]) {
+                    let btn = $('<button class="btn btn-default btn-xxs"></button>').text(App.translate('Edit')).on('click', () => {
+                        field.sourceButtonClick(item).then((data) => {
+                            if (data && data.json && data.json.updated) {
+                                pcTable.model.refresh();
+                            }
+                        });
+                    });
+                    divForPanneSelect.append($('<div class="panel-buttons">').append(btn)).appendTo(textDiv);
+                }
+            } else if (field.viewSelectTable) {
+                let divForPanneSelect = $('<div><div class="center"></div></div>');
+
+                if (field.multi) {
+                    if (val.v && val.v.length) {
+                        let btn = $('<button class="btn btn-default btn-xxs"></button>').text(App.translate('View')).on('click', () => {
+                            field.sourceButtonClick(item);
+                        });
+                        divForPanneSelect.append($('<div class="panel-buttons">').append(btn)).appendTo(textDiv);
+                    }
+                } else if (val.v && !val.v_[1]) {
+                    let btn = $('<button class="btn btn-default btn-xxs"></button>').text(App.translate('View')).on('click', () => {
                         field.sourceButtonClick(item).then((data) => {
                             if (data && data.json && data.json.updated) {
                                 pcTable.model.refresh();
@@ -191,7 +140,7 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
 
         //copy
         {
-            btnCopy = $('<button class="btn btn-sm btn-default copy_me" disabled data-copied-text="Скопировано" title="Копировать "><i class="fa fa-copy"></i></button>');
+            btnCopy = $('<button class="btn btn-sm btn-default copy_me" disabled data-copied-text="' + App.translate('Copied') + '" title="' + App.translate('Copy') + ' "><i class="fa fa-copy"></i></button>');
             btnCopy.on('click', function () {
                 if (textInner.data('text')) {
                     App.copyMe(textInner.data('text'));
@@ -212,7 +161,7 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
         }
 
         //edit
-        if (td.is('.edt')) {
+        if (td.is('.edt, .panel-edt')) {
             mobileButtons.push({
                 label: '<i class="fa fa-pencil-square-o"></i>',
                 action: function (dialog) {
@@ -220,12 +169,26 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
                     td.dblclick();
                 }
             });
-            $('<button class="btn btn-sm btn-default"><i class="fa fa-pencil-square-o"></i></button>')
-                .on('click', function () {
+            let editButton = $('<button class="btn btn-sm btn-default"><i class="fa fa-pencil-square-o"></i></button>')
+                .appendTo(btns);
+            if (pcTable.viewType === 'panels') {
+                editButton.on('click', function () {
+                    pcTable.editSingleFieldInPanel(field, item.id).then((json) => {
+                        if (json) {
+                            pcTable.table_modify(json);
+                        }
+                    }).catch((error) => {
+                        console.log(error);
+                    });
+                    selectObject.selectPanelDestroy();
+                })
+            } else {
+                editButton.on('click', function () {
                     td.dblclick();
                     return false;
                 })
-                .appendTo(btns);
+            }
+
         }
 
 
@@ -242,7 +205,7 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
                     }
                 });
 
-                $('<button class="btn btn-sm btn-warning" title="Удалить из фильтра"><i class="fa fa-filter"></i></button>')
+                $('<button class="btn btn-sm btn-warning" title="' + App.translate("Remove from the filter") + '"><i class="fa fa-filter"></i></button>')
                     .on('click', function () {
                         selectObject.selectPanelDestroy();
                         pcTable.removeValueFromFilters.call(pcTable, field.name, val)
@@ -261,7 +224,7 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
                     }
                 });
 
-                $('<button class="btn btn-sm btn-default" title="Добавить в фильтр"><i class="fa fa-filter"></i></button>')
+                $('<button class="btn btn-sm btn-default" title="' + App.translate('Add to the filter') + '"><i class="fa fa-filter"></i></button>')
                     .on('click', function () {
                         selectObject.selectPanelDestroy();
                         pcTable.addValueToFilters.call(pcTable, field.name, val);
@@ -316,7 +279,7 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
             //log
             if (pcTable.tableRow.type !== 'tmp' && field.logButton) {
                 mobileButtons.push({
-                    label: 'Лог',
+                    label: App.translate('Log'),
                     action: function (dialog) {
                         let rowName;
                         if (pcTable.mainFieldName && item.id) {
@@ -327,7 +290,7 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
                     }
                 });
 
-                $('<button class="btn btn-sm btn-default" title="Лог ручных изменений по полю">Лог</button>')
+                $('<button class="btn btn-sm btn-default" title="' + App.translate('Log of field manual changes') + '">' + App.translate('Log') + '</button>')
                     .on('click', function () {
                         let rowName;
                         if (pcTable.mainFieldName && item.id) {
@@ -344,7 +307,7 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
             }
 
             //close
-            $('<button class="btn btn-sm btn-default" title="Закрыть панель"><i class="fa fa-times"></i></button>')
+            $('<button class="btn btn-sm btn-default" title="' + App.translate('Close the panel') + '"><i class="fa fa-times"></i></button>')
                 .on('click', function () {
                     selectObject.selectPanelDestroy();
                     return false;
@@ -355,7 +318,7 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
 
         let fieldText = field.getPanelText(val.v, $panel, item);
 
-        if (field.type === 'select') {
+        if (field.type === 'select' && field.withPreview && val['v'] && (!field.multiple || val['v'].length === 1)) {
             let _panel = $('<div class="previews">').appendTo(textDiv);
             field.loadPreviewPanel(_panel, field.name, item, val['v']).then(function () {
                 if (divForPannelFormats.data('loadFormats')) {
@@ -491,7 +454,6 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
                 if ((td.offset().left - containerOffsetLeft) < panelWidth) {
                     placement = 'bottom';
                 }
-
             }
 
             let params = {
@@ -559,6 +521,8 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
                 pcTable.dataSortedVisible.forEach((id) => {
                     if (typeof id !== 'object') {
                         this.add(id, fieldName, true);
+                    } else if (id.row) {
+                        this.add(id.row.id, fieldName, true);
                     }
                 })
                 this.summarizer.check();
@@ -699,7 +663,7 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
                     })
                 });
                 allIds = Array.from(new Set(allIds));
-                allIds = pcTable.dataSortedVisible.filter(id => allIds.findIndex((_id)=>{
+                allIds = pcTable.dataSortedVisible.filter(id => allIds.findIndex((_id) => {
                     return _id == id;
                 }) !== -1);
                 allFields = Array.from(new Set(allFields));
@@ -741,7 +705,7 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
                             if (typeof _str === "undefined") _str = "";
 
                             if (typeof _str == 'string' && _str.replace(/\t/g, '').match(/[\s"]/)) {
-                                if(allFields.length!==1){
+                                if (allFields.length !== 1) {
                                     _str = '"' + _str.replace(/"/g, '""') + '"';
                                 }
                             }
@@ -824,23 +788,26 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
                         let step = 'before';
 
                         pcTable.dataSortedVisible.some(function (_id) {
-                            if (typeof _id !== "object") {
+                            if (typeof _id === "object" && _id.row) {
+                                _id = _id.row.id;
+                            } else {
                                 _id = parseInt(_id);
-                                if (step === 'before') {
-                                    if (_id === item.id || _id === selected.lastSelected[1]) {
-                                        step = 'doIt';
-                                        ids.push(_id);
-
-                                        if (item.id === selected.lastSelected[1]) return true;
-                                    }
-                                } else if (step === 'doIt') {
+                            }
+                            if (step === 'before') {
+                                if (_id === item.id || _id === selected.lastSelected[1]) {
+                                    step = 'doIt';
                                     ids.push(_id);
 
-                                    if (_id === item.id || _id === selected.lastSelected[1]) {
-                                        return true;//stop
-                                    }
+                                    if (item.id === selected.lastSelected[1]) return true;
+                                }
+                            } else if (step === 'doIt') {
+                                ids.push(_id);
+
+                                if (_id === item.id || _id === selected.lastSelected[1]) {
+                                    return true;//stop
                                 }
                             }
+
                         });
 
                         step = 'before';
@@ -1034,7 +1001,7 @@ App.pcTableMain.prototype.isSelected = function (fieldName, itemId) {
         this._container.on('click', 'th.id .for-selected button', function () {
             let btn = $(this);
             let html = btn.html();
-            btn.text('Скопировано');
+            btn.text(App.translate('Copied'));
             pcTable.selectedCells.copySepected.call(pcTable, btn.data('names'), function () {
                 btn.html(html)
             });

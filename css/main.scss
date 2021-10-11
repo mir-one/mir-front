@@ -11,7 +11,11 @@ body {
 }
 
 td, th {
-  background-clip: padding-box;
+  background-clip: border-box;
+}
+
+th {
+  cursor: pointer;
 }
 
 input.error {
@@ -26,6 +30,37 @@ input.error {
   margin-top: 10px;
   padding: 3px;
   padding-bottom: 10px;
+}
+
+.function-help {
+
+  .func-template {
+    background-color: #f6f6f6;
+    padding: 5px;
+    margin-bottom: 5px;
+  }
+
+  white-space: normal;
+
+  .req {
+    font-weight: bold;
+  }
+
+  .multi {
+    text-decoration: underline;
+  }
+
+  .db {
+    color: orange;
+  }
+
+  span {
+    padding-right: 5px;
+  }
+
+  .button {
+    margin-top: 5px;
+  }
 }
 
 .creator-hidden {
@@ -101,8 +136,15 @@ input.error {
   margin-bottom: 15px;
   font-size: 14px;
   padding-right: 20px;
-  font-family: "Open Sans";
+  font-family: "PTRootUIWeb";
   line-height: 21px;
+  position: relative;
+
+  .close-table-description {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+  }
 }
 
 #pk .iframed {
@@ -186,8 +228,10 @@ footer {
 
 .source-link {
   padding-top: 8px;
+
   a {
     color: #656565;
+
     &:hover {
       color: #656565;
     }
@@ -391,10 +435,11 @@ input:not([type="checkbox"]):focus {
 }
 
 .pcTable-title {
-  font-size: 24px;
-  font-family: 'Open Sans', sans-serif;
+  font-size: 26px;
+  font-family: 'PTRootUIWeb', sans-serif;
   font-weight: 500;
   padding-bottom: 4px;
+  margin-right: 220px;
 
   .updated {
     padding-top: 6px;
@@ -495,7 +540,7 @@ $tdBackgroundSelectedNonEditColorGROUPS: #bceaff;
       padding-left: 4px;
     }
 
-    &.asUrl {
+    .asUrl {
       cursor: pointer;
       color: #337ab7;
 
@@ -612,7 +657,8 @@ $tdBackgroundSelectedNonEditColorGROUPS: #bceaff;
     background-color: lighten($btn-danger-bgcolor, 20);
   }
   span.cell-title {
-
+    font-family: PTRootUIWeb;
+    font-weight: 500;
     white-space: nowrap;
     color: #4a4a4a;
   }
@@ -627,7 +673,7 @@ $tdBackgroundSelectedNonEditColorGROUPS: #bceaff;
   vertical-align: top;
   &.id {
     @include idClass();
-    padding-top: 8px;
+    padding-top: 0px;
     height: 63px;
   }
 }
@@ -686,6 +732,7 @@ th {
     &.with-filter {
       padding-bottom: 23px;
     }
+
   }
 }
 
@@ -729,7 +776,7 @@ th {
 
 .common-table-title {
   margin-left: 15px;
-
+  white-space: nowrap;
   .btn {
     margin-right: 5px;
     margin-top: -3px;
@@ -795,9 +842,10 @@ th {
     }
 
     thead th:not(.id) {
-      padding-top: 20px;
+      padding-top: 11px;
     }
   }
+
 }
 
 
@@ -842,12 +890,9 @@ th {
     background-color: transparent;
   }
 }
-
-@mixin form-control {
-  height: 27px;
-  font-size: 12px;
+.pcTable-table th:not(.id){
+  background-color: whitesmoke;
 }
-
 .pcTable-container {
 
   padding-right: 5px;
@@ -860,6 +905,9 @@ th {
   position: relative;
 
   .pcTable-sectionTitle {
+    font-family: "PTRootUIWeb";
+    font-weight: 500;
+
     i, span {
       cursor: pointer
     }
@@ -904,7 +952,7 @@ th {
       }
     }
 
-    &.sec-no-titles {
+    &:not(.closed).sec-no-titles {
       .pcTable-floatInner > div {
         td {
           &.cell-button {
@@ -933,7 +981,7 @@ th {
       }
     }
 
-    &:not(.sectionWithPannels) .pcTable-sectionTitle {
+    &:not(.sectionWithPannels):not(.closed) .pcTable-sectionTitle {
       padding-bottom: 5px;
     }
   }
@@ -964,7 +1012,12 @@ th {
   }
 
   .form-control {
-    @include form-control();
+    height: 28px;
+    font-size: 12px;
+  }
+
+  input.form-control {
+    font-size: 13px;
   }
 
   &.no-fields .innerContainer {
@@ -990,6 +1043,8 @@ th {
   }
 
   .pcTable-rowsTitle {
+    font-family: PTRootUIWeb;
+    font-weight: 500;
     padding-left: $idWidth - 18;
     padding-top: 10px;
 
@@ -1026,6 +1081,8 @@ th {
         background-color: rgb(225, 224, 223);
       }
     }
+
+
 
     .scroll-top-button, .summarizer {
       position: fixed;
@@ -1136,6 +1193,10 @@ th {
 .pcTable-filtersTable {
   border-bottom: 1px solid #f1f1f1;
 
+  i.fa.fa-spinner {
+    margin-top: -5px;
+    display: block;
+  }
 }
 
 .pcTable-hiddenFieldsTables {
@@ -1161,13 +1222,13 @@ th {
   margin-left: $idWidth;
 }
 
-.pcTable-tableText {
+.pcTable-tableText, .table-description {
   &:empty {
     display: none;
   }
 
-  font-size: 14px;
-  font-family: 'Open Sans';
+  font-size: 16px;
+  font-family: 'PTRootUIWeb';
   line-height: 21px;
 
   margin-bottom: 20px;
@@ -1175,6 +1236,10 @@ th {
   padding: 10px 20px;
   margin-right: 20px;
   margin-top: 15px;
+  margin-left: -20px;
+}
+.pcTable-tableText{
+  margin-left: 50px
 }
 
 .pcTable-tableComment {
@@ -1342,8 +1407,37 @@ th {
         width: 100%;
       }
 
+
       td {
+        .btn, .btn:active {
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 1px 1px rgba(0, 0, 0, 0.075)
+        }
+
+        &.cell-button {
+          padding-top: 1px !important;
+
+          button {
+            padding: 3px 7px;
+            height: 25px;
+
+          }
+        }
+
+        .bootstrap-select .btn-sm, .source-add {
+          padding: 3px 7px;
+        }
+
+        .bootstrap-select.form-control {
+          background-color: transparent;
+          height: auto;
+        }
+
+        padding: 3px;
         background-color: $btn-warning-bgcolor;
+
+        &.active {
+          background-color: darken($btn-warning-bgcolor, 20%);
+        }
 
         &.ins-handed {
           input {
@@ -1362,6 +1456,10 @@ th {
 
       td.with-code {
         background-color: $btn-warning-bgcolor;
+
+        &.active {
+          background-color: darken($btn-warning-bgcolor, 20%);
+        }
 
         input, select, button {
           background-color: $tdWithCodeColor;
@@ -1498,7 +1596,10 @@ th {
       }
     }
   }
-
+  .pcTable-topButtons{
+    height: 45px;
+    box-sizing: border-box;
+  }
   .pcTable-table tbody {
     th.worker-with-i .pcTable-filters {
       bottom: 9px;
@@ -1618,6 +1719,7 @@ th.id .pcTable-filters.for-selected .btn {
 
     input[type="checkbox"] {
       display: block;
+      margin-top: 4px;
     }
 
     &.error input {
@@ -1652,6 +1754,26 @@ th.id .pcTable-filters.for-selected .btn {
   //font-family: 'Open Sans', serif;
 
   width: 100%;
+  .backgroundButton{
+    height: 26px;
+    width: 26px;
+  }
+  &.admin-see {
+    background-color: lighten($btn-danger-bgcolor, 20);
+  }
+  .select-val{
+    @include selectVal();
+    font-size: 13px;
+    padding-left: 10px;
+    .loaded-preview{
+      padding-bottom: 5px;
+      padding-top: 5px;
+      padding-right: 5px;
+    }
+  }
+  .previews{
+    background-color: #fafafa;
+  }
 
   > .btns .btn {
     border-color: transparent;
@@ -1701,12 +1823,13 @@ th.id .pcTable-filters.for-selected .btn {
     text-overflow: ellipsis;
     white-space: nowrap;
     margin-bottom: 10px;
-    font-weight: 400;
+    font-weight: 500;
     font-size: 14px;
+    font-family: "PTRootUIWeb";
   }
 
   .form-control {
-    @include form-control();
+    font-size: 13px;
     height: auto;
   }
 
@@ -1748,7 +1871,7 @@ th.id .pcTable-filters.for-selected .btn {
       height: 28px;
       background-color: #faf9f8;
       border-color: transparent;
-
+      font-size: 12px;
     }
 
     &.with-source-add-button {
@@ -1815,7 +1938,7 @@ ul.CodeMirror-hints {
 
     &.edit-field-panel .modal-dialog {
       .InsertPanel {
-        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-columns: minmax(0%, 1fr) minmax(0%, 1fr) minmax(0%, 1fr);
         grid-gap: 10px;
       }
     }
@@ -1884,7 +2007,7 @@ ul.CodeMirror-hints {
 
 #main-page {
   font-size: 14px;
-  font-family: "Open Sans";
+  font-family: "PTRootUIWeb";
   padding: 0 20px 10px 70px;
   overflow: hidden;
 }
@@ -2012,6 +2135,18 @@ input {
   text-overflow: clip;
   cursor: pointer;
 
+  -webkit-user-select: auto;
+  -moz-user-select: text;
+  -khtml-user-select: auto;
+  user-select: text;
+
+  .full-title {
+    white-space: normal;
+    font-size: 15px;
+    font-family: PTRootUIWeb;
+    font-weight: 500;
+  }
+
   i {
     margin-left: 3px;
     font-size: 11px;
@@ -2043,9 +2178,15 @@ input {
   .creator-icons {
     div {
       padding-left: 15px;
-      text-indent: -7px;
+      text-indent: -5px;
       color: #ff8585;
       white-space: normal;
+    }
+
+    div:first-child {
+      color: inherit;
+      text-indent: 0;
+      margin-left: -10px;
     }
 
     display: block;
@@ -2068,7 +2209,7 @@ input {
       padding-top: 5px;
     }
 
-    button {
+    button:not(.copy-me) {
       text-align: center;
       margin-left: 3px;
 
@@ -2084,6 +2225,16 @@ input {
       &.offed {
         background-color: #fafafa;
         color: #333;
+      }
+    }
+
+    button.copy-me {
+      padding: 2px;
+      width: 25px;
+      margin-left: 10px;
+
+      i {
+        margin: 0;
       }
     }
   }
@@ -2148,6 +2299,7 @@ input {
 @import "treeView";
 @import "tables_tabs";
 @import "panelView";
+@import "calcs-table";
 @import "mobile";
 
 

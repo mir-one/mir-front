@@ -9,20 +9,76 @@ var defaultField = {
     getPanelVal(val) {
         return val;
     },
+    getPanelFormats(divForPannelFormats, panelFormats){
+        let field = this;
+        divForPannelFormats.empty();
+        if (panelFormats) {
+            let interv;
+            panelFormats.rows.forEach((frow) => {
+                switch (frow.type) {
+                    case 'text':
+                        divForPannelFormats.append($('<div class="panel-text">').text(frow.value));
+                        break;
+                    case 'html':
+                        divForPannelFormats.append($('<div class="panel-html">').html(frow.value));
+                        break;
+                    case 'img':
+                        divForPannelFormats.append($('<div class="panel-img">').append($('<img>').attr('src', '/fls/' + frow.value + "_thumb.jpg?rand=" + Math.random())));
+                        break;
+                    case 'buttons':
+                        if (frow.value && frow.value.forEach) {
+                            let $buttons = [];
+                            frow.value.forEach((b) => {
+                                let btn = $('<button class="btn btn-default btn-xxs">').text(b.text);
+                                $buttons.push(btn)
+                                if (b.color) {
+                                    btn.css('color', b.color)
+                                }
+                                if (b.background) {
+                                    btn.css('background-color', b.background)
+                                }
+                                btn.on('click', function () {
+                                    field.pcTable.selectedCells.empty();
+                                    field.pcTable.selectedCells.selectPanelDestroy();
+
+                                    field.pcTable.model.panelButtonsClick(panelFormats.hash, b.ind).then(function (json) {
+                                        if (b.refresh) {
+                                            field.pcTable.model.refresh(null, b.refresh)
+                                        }
+                                    });
+                                })
+                            })
+                            divForPannelFormats.append($('<div class="panel-buttons">').append($buttons));
+                        }
+                        break;
+                }
+
+            })
+            if (panelFormats.hash) {
+                interv = setInterval(() => {
+                    if (!divForPannelFormats.closest('body').length) {
+                        clearInterval(interv);
+                        field.pcTable.model.panelButtonsClear(panelFormats.hash);
+                    }
+                }, 1000)
+            }
+        }
+
+    },
     getEditVal: function (input) {
         var val = input.val().trim();
         var error = false,
             notify;
         if (this.required && (val === undefined || val === '' || val === null)) {
-            notify = 'Поле ' + this.title + ' должно быть заполнено';
+            notify = App.translate('The field %s must be entered', this.title);
             error = true;
         }
 
         if (this.regexp && val !== '') {
             var r = new RegExp(this.regexp);
             if (!r.test(val)) {
-                notify = this.regexpErrorText || 'regexp не проходит - "' + this.regexp + '"';
-                notify = 'Ошибка заполнения поля "' + this.title + '": ' + notify;
+                notify = this.regexpErrorText || App.translate('Value fails regexp validation: "%s"', this.regexp);
+                notify = App.translate('Filled "%s" field  error: %s',[this.title, notify]);
                 error = true;
             }
         }
@@ -36,9 +92,10 @@ var defaultField = {
 
         var field = this;
         oldValue = oldValue.v;
-        $input.val(oldValue).on('keyup', function (event) {
+        $input.val(oldValue).on('keydown', function (event) {
             switch (event.keyCode) {
                 case 13:
+                case 9:
                     try {
                         $input.data('enterClicked', true);
                         enterClbk($(this), event);
@@ -118,7 +175,7 @@ var defaultField = {
             res.done(function (data) {
                 def.resolve(checkDiv(data))
             }).fail(function () {
-                def.resolve('Не удалось загрузить данные')
+                def.resolve(App.translate('Failed to load data'))
             });
 
             return def;
@@ -129,6 +186,10 @@ var defaultField = {
     },
     focusElement: function (input) {
         input.focus();
+        if (input.closest('tr').is('.InsertRow')) {
+            this.pcTable._insertRow.find('.active').removeClass('active');
+            input.closest('td').addClass('active');
+        }
     },
     isDataModified: function (editVal, itemVal) {
         editVal = editVal + '';
@@ -136,7 +197,7 @@ var defaultField = {
 
         editVal === 'null' ? editVal = '' : false;
         itemVal === 'null' ? itemVal = '' : false;
-        itemVal === (this.errorText || 'ОШБК!') ? itemVal = '' : false;
+        itemVal === (this.errorText || App.translate('ERR!')) ? itemVal = '' : false;
         itemVal === 'undefined' ? itemVal = '' : false;
 
         return editVal !== itemVal;
@@ -148,17 +209,17 @@ var defaultField = {
     },
     addDataToFilter: function (filterVals, valObj) {
         let hash;
-        let val='Пустое'
+        let val = App.translate('Empty');
         if (valObj.v === null || valObj.v === '') {
             hash = ''.hashCode();
         } else {
             hash = valObj.v.toString().hashCode();
-            val= typeof valObj.v === "string" ? valObj.v.replace(/"/g, "&quot;") : (valObj.v + ' ')
+            val = typeof valObj.v === "string" ? valObj.v.replace(/"/g, "&quot;") : (valObj.v + ' ')
         }
         filterVals[hash] = val;
     },
     checkIsFiltered: function (fieldVal, filters) {
-        let vals={};
+        let vals = {};
         this.addDataToFilter(vals, fieldVal);
         return filters.some(function (v) {
             return v in vals;
@@ -174,7 +235,7 @@ var defaultField = {
         else if (this.multiple) return 1.5;
         else return 1;
     },
-    getHighCelltext: function (v, td, item){
+    getHighCelltext: function (v, td, item) {
         return (this.getPanelText ? this.getPanelText(v, td, item) : this.getCellText(v, td, item));
     }
 

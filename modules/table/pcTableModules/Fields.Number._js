@@ -6,21 +6,21 @@ fieldTypes.number = {
 
         if ((val === undefined || val === '' || val === null)) {
             if (this.required) {
-                throw 'Поле ' + this.title + ' должно быть заполнено';
+                throw App.translate('The field %s must be entered', this.title);
             }
             return '';
         } else if (this.regexp) {
             var r = new RegExp(this.regexp);
             if (!r.test(val)) {
-                let notify = this.regexpErrorText || 'regexp не проходит - "' + this.regexp + '"';
-                notify = 'Ошибка заполнения поля "' + (this.title || this.name) + '": ' + notify;
+                let notify = this.regexpErrorText || App.translate('Value fails regexp validation: "%s"', this.regexp);
+                notify = App.translate('Filled "%s" field  error: %s', [(this.title || this.name), notify]);
                 throw notify;
             }
         }
 
         let valNew = val.replace(/[^\-()\d/*+.,%:\/]/g, '');
         if (!/^(\+|\*|\%|\/|\:)?(\-?[\d]+((\.|\,)[\d]+)?)%?$/.test(valNew)) {
-            throw 'Здесь должно быть число';
+            throw App.translate('There must be a number');
         }
         val = val.replace(/,/, '.');
         return val;
@@ -58,15 +58,35 @@ fieldTypes.number = {
             let options = {};
 
 
-            let dectimalSeparator, thousandthSeparator;
+            let dectimalSeparator, thousandthSeparator, postfix;
             if ('dectimalSeparator' in this) {
-                dectimalSeparator = this.dectimalSeparator
+                dectimalSeparator = this.dectimalSeparator;
+                if (dectimalSeparator.match(/\*\*/)) {
+                    dectimalSeparator = dectimalSeparator.split('**')[val >= 0 ? 0 : 1];
+                }
             }
             if ('thousandthSeparator' in this) {
-                thousandthSeparator = this.thousandthSeparator
+                thousandthSeparator = this.thousandthSeparator;
+                if (thousandthSeparator.match(/\*\*/)) {
+                    thousandthSeparator = thousandthSeparator.split('**')[val >= 0 ? 0 : 1];
+                }
+            }
+            postfix = this.postfix;
+            if (postfix && postfix.match(/\*\*/)) {
+                postfix = postfix.split('**')[val >= 0 ? 0 : 1];
+            } else {
+                postfix = '';
             }
 
-            return (val !== null && 'prefix' in this ? this.prefix : '') + this.numberFormat(parseFloat(val), this.dectimalPlaces || 0, dectimalSeparator, thousandthSeparator) + (val !== null && 'postfix' in this ? this.postfix : '');
+            let prefix = this.prefix || '';
+            if (prefix.match(/\*\*/)) {
+                prefix = prefix.split('**')[val >= 0 ? 0 : 1];
+                val = Math.abs(val);
+            }
+            let decimals = this.dectimalPlaces || 0;
+
+
+            return prefix + this.numberFormat(parseFloat(val), decimals, dectimalSeparator, thousandthSeparator) + postfix;
         }
         return val;
     }

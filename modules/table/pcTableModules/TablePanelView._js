@@ -74,6 +74,10 @@
 
                 td.attr('data-field-type', Field.type).addClass('nonowrap');
 
+                if(Field.editable && Field.pcTable.control.editing && !format.block){
+                    td.addClass('panel-edt');
+                }
+
                 if (format.showhand !== false && data[field.field].h) {
                     let val = data[field.field], $hand;
                     if (val.c !== undefined && val.v != val.c) {
@@ -380,7 +384,7 @@
                             }
                         })
                     } else {
-                        $cards.append('<div class="empty-kanban">Нет данных</div>');
+                        $cards.append('<div class="empty-kanban">'+App.translate('No data')+'</div>');
                     }
                 })
                 $div.width(width);
@@ -394,7 +398,7 @@
             }
 
         } else {
-            $div.append('<div class="no-panels">Нет данных</div>');
+            $div.append('<div class="no-panels">'+App.translate('No data')+'</div>');
         }
         setTimeout(() => {
             this._container.getNiceScroll().resize();
@@ -516,6 +520,7 @@
     App.pcTableMain.prototype._renderTablePanelView = function () {
 
         this.loadFilters();
+        this.model.addExtraData({'panelsView':true})
 
         this._renderTable = render.bind(this);
         this._getRowCard = getRowCard.bind(this);
@@ -542,11 +547,14 @@
                 if (offset.top < 0) {
                     if (!cln) {
                         let css = {
-                            left: offset.left,
+                            left: offset.left + this._innerContainer.scrollLeft(),
                             'grid-template-columns': wrapper.css('grid-template-columns'),
                             width: wrapper.width()
                         }
                         cln = $('<div class="kanbanWrapper pcTable-floatBlock cln">').css(css);
+                        cln.width(this._innerContainer.width())
+
+
                         $('.kanban').each(function () {
                             let exs = $(this);
                             let knb = $("<div class='kanban'>").width(exs.width()).append(exs.find('.kanban-title').clone())
@@ -561,6 +569,8 @@
                         attached = true;
                         this._innerContainer.append(cln)
                         this._innerContainer.append(topButton)
+
+                        cln.scrollLeft(this._innerContainer.scrollLeft())
                     }
                 } else if (attached) {
                     attached = false;
@@ -574,6 +584,16 @@
                     scrollFunc();
                 }, 50);
             });
+
+            let scroll_horizontal_debounce;
+            this._innerContainer.on('scroll', ()=>{
+                clearTimeout(scroll_horizontal_debounce);
+                scroll_horizontal_debounce = setTimeout(()=>{
+                    if(cln){
+                        cln.scrollLeft(this._innerContainer.scrollLeft())
+                    }
+                }, 50)
+            })
 
             this.rowButtonsCalcWidth = function () {
 

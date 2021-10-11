@@ -49,25 +49,32 @@
                 Dialog.close();
             }
             $('body').on(eventName, () => {
-
                 save();
             });
+
             let buttons = [
                 {
                     action: save,
                     cssClass: 'btn-warning btn-save',
-                    label: 'Cохранить'
+                    label: App.translate('Save')+' Alt+S'
+                },
+                {
+                    action: ()=>{
+                        Dialog.close();
+                    },
+                    cssClass: 'btn-default btn-save',
+                    label: '<i class="fa fa-times"></i>'
                 }
 
             ];
             if (canBeSwitchOff)
                 buttons.unshift({
                     action: () => {
-                        App.confirmation("Отключить код " + title, {
-                            "Отмена": (dialog) => {
+                        App.confirmation(App.translate("Disable code")+" " + title, {
+                            [App.translate('Cancel')]: (dialog) => {
                                 dialog.close();
                             },
-                            'Отключить': (dialog) => {
+                            [App.translate("Disable")]: (dialog) => {
                                 resolved = true;
                                 resolve({
                                     code: editorMax.getValue(),
@@ -77,10 +84,10 @@
                                 dialog.close();
                                 Dialog.close();
                             }
-                        }, "Отключение кода")
+                        }, App.translate("Code disabling"))
                     },
                     cssClass: 'btn-default btn-save',
-                    label: 'Отключить'
+                    label: App.translate("Disable")
                 })
 
             window.top.BootstrapDialog.show({
