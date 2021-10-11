@@ -41,7 +41,7 @@
                 offset = _offset;
                 onPage = _onPage
             },
-            addFiltersData: function (filters) {
+            addExtraData: function (filters) {
                 "use strict";
                 extraData = $.extend(true, {}, extraData, filters);
             },
@@ -51,7 +51,7 @@
                 let model = this;
                 setTimeout(function () {
                     model.getDefferedProcess().then(func);
-                }, 50);
+                }, 170);
             },
             getDefferedProcess: function () {
                 return new Promise((resolve, reject) => {
@@ -67,7 +67,7 @@
                 App.showDatas.call(pcTable.model, json.interfaceDatas, null, window);
                 delete json.interfaceDatas;
             }, showPanels: function (json) {
-                App.showPanels(json.panels);
+                App.showPanels(json.panels, pcTable);
                 delete json.panels;
             },
             addPcTable: function (pcTableIn) {
@@ -123,24 +123,7 @@
                 let Model = this;
                 let success = function (json) {
 
-                    let methods = {
-                        'edit': 'Изменение',
-                        'checkInsertRow': 'Предварительное добавление',
-                        'duplicate': 'Дублирование',
-                        'refresh_rows': 'Пересчет строк',
-                        'loadPage': 'Загрузка страницы',
-
-                        'getTableData': 'Загрузка информации о таблице',
-                        'refresh': 'Обновление данных таблицы',
-                        'checkEditRow': 'Предварительный расчет панели',
-                        'saveEditRow': 'Сохранение панели',
-                        'save': 'Изменение поля',
-                        'click': 'Нажатие кнопки',
-                        'selectSourceTableAction': 'Вызов панели',
-                        'add': 'Добавление строки',
-                        'getEditSelect': 'Загрузка селекта',
-                        'delete': 'Удаление'
-                    };
+                    let methods = App.lang.modelMethods;
 
                     let pcTableObj = $('#table').data('pctable');
                     if (pcTableObj) {
@@ -174,7 +157,13 @@
                             }
                             if ('allCount' in json && json.allCount !== null && pcTableObj.PageData.allCount !== json.allCount) {
                                 changed = true;
+
+                                if (pcTableObj.tableRow.pagination.match(/desc\s*$/)) {
+                                    pcTableObj.PageData.offset += json.allCount - pcTableObj.PageData.allCount;
+                                }
+
                                 pcTableObj.PageData.allCount = json.allCount
+
                             }
                             if (changed) {
                                 pcTableObj.PageData.$block.empty().append(pcTableObj._paginationCreateBlock.call(pcTableObj))
@@ -182,6 +171,10 @@
                         }
                     }
 
+
+                    if (json.tableChanged) {
+                        pcTable.showRefreshButton(json.tableChanged)
+                    }
 
                     if (!json.error) {
                         if (json.reload) window.location.href = window.location.href;
@@ -191,6 +184,16 @@
                             if (json.panels && json.panels.length > 0) Model.showPanels(json);
                         }
                         $d.resolve(json);
+
+                        setTimeout(() => {
+                            if (json.chdata && json.updated && pcTable.editPanels) {
+                                pcTable.editPanels.forEach((panel) => {
+                                    panel.refresh();
+                                })
+                            }
+                        }, 10)
+
+
                     } else {
                         var errorText = $('<div>').html(json.error.replace(/\[\[(.*?)\]\]/g, '<b>$1</b>'));
 
@@ -200,7 +203,7 @@
                                 BootstrapDialog.show({
                                     message: $('<pre style="max-height: ' + ($('body').height() - 200) + 'px; overflow: scroll">').css('font-size', '11px').text(JSON.stringify(json.log, null, 1)),
                                     type: BootstrapDialog.TYPE_DANGER,
-                                    title: 'Лог расчета',
+                                    title: App.translate('Calculate log'),
                                     buttons: [{
                                         'label': null,
                                         icon: 'fa fa-times',
@@ -236,7 +239,7 @@
                     if (obj && obj.status === 200) {
                         if (obj.responseJSON && obj.responseJSON.error) error = obj.responseJSON.error;
                         else {
-                            error = $('<div>Ошибка выполнения операции  </div>');
+                            error = $('<div>' + App.translate('Operation execution error') + '  </div>');
                             if (pcTable && pcTable.isCreatorView) {
                                 error.append('<button class="btn danger-backg btn-xs" data-toggle="collapse" data-target="#notify-texh"><i class="fa fa-angle-down"></i><i class="fa fa-angle-up"></i></button>');
                                 error.append($('<div id="notify-texh" class="collapse">').append($('<code>').text(obj.responseText)));
@@ -250,7 +253,7 @@
 
                         } else if (RequestObject && RequestObject.jqXHR) {
                             if (RequestObject.jqXHR.statusText !== "abort") {
-                                error = 'Нет соединения с сервером';
+                                error = App.translate('No server connection');
                                 timeout = 200;
                             }
                         }
@@ -288,18 +291,22 @@
                         } else url += '?';
                         url += 'rn=' + Math.round(Math.random() * 100000) + (data_tmp['method'] || '');
                     }
-                    $.ajax({
-                        url: url,
-                        method: $method,
-                        data: data_tmp,
-                        dataType: 'json',
-                        beforeSend: function (jqXHR, settings) {
-                            if (RequestObject) {
-                                RequestObject.jqXHR = jqXHR;
-                            }
+                    if (!RequestObject || RequestObject.aborted !== true) {
+                        $.ajax({
+                            url: url,
+                            method: $method,
+                            data: data_tmp,
+                            dataType: 'json',
+                            beforeSend: function (jqXHR, settings) {
+                                if (RequestObject) {
+                                    RequestObject.jqXHR = jqXHR;
+                                }
 
-                        }
-                    }).then(success).fail(fail)
+                            }
+                        }).then(success).fail(fail)
+                    } else {
+                        fail({statusText: "abort"});
+                    }
                 };
                 ajax();
 
@@ -380,8 +387,8 @@
                 "use strict";
                 return this.__ajax('post', {fieldName: fieldName, fieldVal: val, method: 'checkUnic'});
             },
-            add: function (data) {
-                return this.__ajax('post', {data: data, method: 'add'});
+            add: function (hash, data) {
+                return this.__ajax('post', {hash: hash, method: 'add', data: data});
             },
             getValue: function (data, table_id) {
                 return this.__ajax('post', {data: data, method: 'getValue', table_id: table_id});
@@ -395,7 +402,7 @@
             setTableFavorite: function (status) {
                 return this.__ajax('post', {status: status, method: 'setTableFavorite'});
             },
-            checkInsertRow: function (data, editedFields) {
+            checkInsertRow: function (data, hash, clearField) {
                 var sendData = {};
                 $.each(data, function (k, v) {
                     if (v != undefined) {
@@ -404,7 +411,8 @@
                 });
                 return this.__ajax('post', {
                     data: sendData,
-                    editedFields: JSON.stringify(editedFields),
+                    hash: hash,
+                    clearField: clearField,
                     method: 'checkInsertRow'
                 });
             },
@@ -417,12 +425,15 @@
                 });
                 return this.__ajax('post', {data: sendData, method: 'checkEditRow'});
             },
-            checkTableIsChanged: function () {
+            viewRow: function (id) {
+                return this.__ajax('post', {id: id, method: 'viewRow'});
+            },
+            checkTableIsChanged: function (RequestObject) {
                 return this.__ajax('post', {
                     method: 'checkTableIsChanged',
                     table_id: pcTable.tableRow.id,
-                    cycle_id: pcTable.tableRow.cycle_id
-                });
+                    cycle_id: pcTable.tableRow.cycle_id,
+                }, RequestObject);
             },
             checkForNotifications: function (periodicity, activeNotifications, RequestObject) {
                 return this.__ajax('post', {
@@ -438,6 +449,13 @@
                     num: num,
                     item: item,
                     type: type,
+                });
+            },
+            seachUserTables: function (searchString, excludeTop) {
+                return this.__ajax('post', {
+                    method: 'seachUserTables',
+                    q: searchString,
+                    et: excludeTop
                 });
             },
             selectSourceTableAction: function (field_name, data) {
@@ -456,14 +474,14 @@
                 });
                 return this.__ajax('post', {data: sendData, method: 'saveEditRow'});
             },
-            getEditSelect: function (item, fieldName, q, parentid, withLoading) {
+            getEditSelect: function (item, fieldName, q, parentid, withLoading, RequestObject) {
                 var sendData = {};
                 return this.__ajax('post', {
                     data: {item: item, field: fieldName},
                     q: q,
                     parentId: parentid,
                     method: 'getEditSelect'
-                }, undefined, !withLoading);
+                }, RequestObject, !withLoading);
             },
             loadPreviewHtml: function (fieldName, item, val) {
                 return this.__ajax('post', {
@@ -510,7 +528,7 @@
             panelsView: function (switcher) {
                 return this.__ajax('post', {method: 'panelsViewCookie', switcher: switcher ? 1 : 0});
             },
-            refresh: function (func, refreshType, withoutIds) {
+            refresh: function (func, refreshType, withoutIds, getList) {
 
                 func = func || function (json) {
                     pcTable.table_modify.call(pcTable, json);
@@ -528,7 +546,8 @@
                     method: 'refresh',
                     tree: tree,
                     recalculate: refreshType === 'recalculate' ? true : null,
-                    withoutIds: withoutIds ? true : null
+                    withoutIds: withoutIds,
+                    getList: getList
                 }).then(function (json) {
                     try {
                         func(json)
@@ -575,6 +594,9 @@
             panelButtonsClear: function (hash) {
                 return this.__ajax('post', {method: 'panelButtonsClear', hash: hash})
             },
+            linkJsonClick: function (hash, json) {
+                return this.__ajax('post', {method: 'linkJsonClick', hash: hash, json: json})
+            },
             buttonsClick: function (hash, index) {
                 return this.__ajax('post', {method: 'linkButtonsClick', hash: hash, index: index})
             }, inputClick: function (hash, val) {
@@ -590,7 +612,7 @@
             }, userButtonsClick: function (hash, index) {
                 return this.__ajax('post', {method: 'userButtonsClick', hash: hash, index: index})
             }, filesUpload: function (files, hash) {
-                return this.__ajax('post', {method: 'filesUpload', "files":JSON.stringify(files), hash:hash});
+                return this.__ajax('post', {method: 'filesUpload', "files": JSON.stringify(files), hash: hash});
             },
             loadPage: function (pcTable, lastId, count, prevLastId, offset) {
                 let _filters = {};
@@ -606,36 +628,7 @@
                     pageCount: count,
                     prevLastId: prevLastId
                 }, null, null, _filters).then(function (json) {
-                    pcTable.loadedPage = json.page;
-                    pcTable.rows = json.rows;
-
-                    let ids;
-                    if (json.rows.length) {
-                        ids = {
-                            firstId: json.rows[0].id,
-                            lastId: json.rows[json.rows.length - 1].id,
-
-                        }
-                    } else {
-                        ids = {
-                            firstId: 0,
-                            lastId: 0
-                        }
-                    }
-                    pcTable.PageData = {
-                        ...pcTable.PageData, ...{
-                            offset: json.offset
-                            , allCount: json.allCount
-                            , loading: false
-
-                        }, ...ids
-                    }
-
-                    pcTable.initRowsData.call(pcTable);
-                    pcTable._refreshContentTable.call(pcTable, false, true);
-                    pcTable.__applyFilters.call(pcTable, true);
-                    pcTable.PageData.$block.empty().append(pcTable._paginationCreateBlock.call(pcTable));
-                    pcTable.selectedCells.summarizer.check();
+                    pcTable.applyPage(json)
                 })
             }
 
