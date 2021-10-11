@@ -264,6 +264,8 @@
             $div.css('marginLeft', _gap)
         }
         sections.forEach((sec) => {
+            if (!sec.fields || !sec.fields.length) return;
+
             //' + (sec.isNoTitles ? 'sec-no-titles' : '') + '
             let sDv = $('<div class="pcTable-section ">').appendTo($paramsBlock);
             let sectionGap = sec.sectionGap;
@@ -417,7 +419,7 @@
                 let tdWrapper = $('<div class="td-wrapper">').appendTo(fieldCell);
 
                 if (field.format.titleleft || field.format.titleright) {
-                    fieldCell.css('display', 'grid');
+                    fieldCell.css('display', 'inline-grid');
                     if (pcTable.isCreatorView) {
                         tdWrapper.css('margin-top', '18px')
                     }
